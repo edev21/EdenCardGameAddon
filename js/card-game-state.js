@@ -42,6 +42,7 @@ function EdenCreateGameState(deck) {
 
         player: {
             name: "Player",
+            online: true,
             fullDeck: deck,
             deck: playerDeck,
             hand: [],
@@ -53,6 +54,7 @@ function EdenCreateGameState(deck) {
 
         opponent: {
             name: "Opponent",
+            online: false,
             fullDeck: opponentFullDeck,
             deck: opponentDeck,
             hand: [],
@@ -99,9 +101,9 @@ function EdenEndTurn() {
     if (!EdenGameState) return false;
     if (EdenGameState.currentTurn !== "player") return false;
 
-    EdenGameState.currentTurn = "opponent";
-    EdenGameState.actionsRemaining = 2;
+    EdenGameState.currentTurn = EdenGameState.currentTurn === "player" ? "opponent" : "player";
 
+    EdenTurnStart(EdenGameState.currentTurn);
     EdenAddGameLog("You ended your turn.");
     return true;
 }
@@ -111,30 +113,39 @@ Plays the card at handIndex into the player's board slot boardIndex.
 A member already in that slot is replaced and sent to the resting room.
 The actual card effects will be added later.
 */
-function EdenPlayCard(handIndex, boardIndex) {
+function EdenPlayCard(ECPlayer, handIndex, boardIndex) {
     if (!EdenGameState) return false;
     if (EdenGameState.currentTurn !== "player") return false;
     if (EdenGameState.actionsRemaining <= 0) return false;
 
-    const player = EdenGameState.player;
-    if (handIndex < 0 || handIndex >= player.hand.length) return false;
-    if (boardIndex < 0 || boardIndex >= player.board.length) return false;
+    if (handIndex < 0 || handIndex >= ECPlayer.hand.length) return false;
+    if (boardIndex < 0 || boardIndex >= ECPlayer.board.length) return false;
 
-    const cardId = player.hand.splice(handIndex, 1)[0];
-    const replacedId = player.board[boardIndex];
+    const cardId = ECPlayer.hand.splice(handIndex, 1)[0];
+    const replacedId = ECPlayer.board[boardIndex];
+    const card = EdenGetCardById(cardId);
+    const replaced = replacedId !== null ? EdenGetCardById(replacedId) : null;
+    EdenPlayerAddFame(ECPlayer, card?.enterFame ?? 0);
+    if (card?.onEnter) card.onEnter(ECPlayer);
+    EdenPlayerAddFame(ECPlayer, replaced?.leaveFame ?? 0);
+    if (replaced?.onLeave) replaced.onLeave(ECPlayer);
 
-    if (replacedId !== null) player.restingRoom.push(replacedId);
-    player.board[boardIndex] = cardId;
+    if (replacedId !== null) ECPlayer.restingRoom.push(replacedId);
+    ECPlayer.board[boardIndex] = cardId;
 
     EdenGameState.actionsRemaining--;
 
-    const card = EdenGetCardById(cardId);
-    const replaced = replacedId !== null ? EdenGetCardById(replacedId) : null;
 
     if (card && replaced) EdenAddGameLog(`You played ${card.name}, replacing ${replaced.name}.`);
     else if (card) EdenAddGameLog(`You played ${card.name}.`);
 
     return true;
+}
+
+function EdenPlayerAddFame(player, amount) {
+    if (!EdenGameState) return;
+    if (amount == 0) return;
+    player.fame = (player.fame || 0) + amount;
 }
 
 function EdenPlayerDrawCard(player, amount) {
@@ -151,7 +162,63 @@ function EdenPlayerDrawCard(player, amount) {
 
 function EdenTurnStart(turnPlayer) {
     if (!EdenGameState) return false;
+    EdenGameState.actionsRemaining = 2;
     let ECPlayer = EdenGameState[turnPlayer];
     ECPlayer.turnNumber++;
     EdenPlayerDrawCard(ECPlayer, 1);
+    if (!ECPlayer.online) AITurn(ECPlayer);
+}
+
+async function AITurn(ECPlayer) {
+    if (!EdenGameState) return false;
+    if (EdenGameState.currentTurn !== "opponent") return false;
+
+    EdenGameState.currentTurn = "player";
+    EdenGameState.actionsRemaining = 2;
+
+    await aiPlayCard(ECPlayer);
+    if (EdenGameState.actionsRemaining > 0) {
+        EdenPlayerDrawCard(ECPlayer, 1);
+        EdenGameState.actionsRemaining--;
+    }
+    if (EdenGameState.actionsRemaining > 0) await aiPlayCard(ECPlayer);
+
+    EdenEndTurn();
+}
+
+async function aiPlayCard(ECPlayer) {
+    while (EdenGameState.actionsRemaining > 0) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const availableCards = ECPlayer.hand.filter(cardId => {
+            const card = EdenGetCardById(cardId);
+            return !card?.canPlay || card.canPlay(ECPlayer);
+        });
+        if (availableCards.length === 0) break;
+        const randomIndex = Math.floor(Math.random() * availableCards.length);
+        const cardId = availableCards[randomIndex];
+        const randomBoardIndex = Math.floor(Math.random() * ECPlayer.board.length);
+        EdenPlayCard(ECPlayer, ECPlayer.hand.indexOf(cardId), randomBoardIndex);
+    }
+}
+
+function EdenCheckCardPresence(player, cardName) {
+    return player.board.some(cardId => {
+        const card = EdenGetCardById(cardId);
+        return card?.name === cardName;
+    });
+}
+
+function EdenCheckGroupCountPresence(player, groupName) {
+    return player.board.filter(cardId => {
+        const card = EdenGetCardById(cardId);
+        return card?.groups?.includes(groupName);
+    }).length;
+}
+
+function EdenSummonCard(ECPlayer, cardName) {
+    if (!EdenGameState) return false;
+    const card = EdenCardDatabase.find(c => c.name === cardName);
+    if (!card) return false;
+    ECPlayer.board.push(card.id);
+    return true;
 }

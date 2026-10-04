@@ -2,8 +2,13 @@
 
 const EdenCardClasses = [
     {
-        id: "entertainer",
-        name: "Entertainer"
+        id: "college",
+        name: "College",
+        abilityName: "First Bell",
+        abilityDescription: "Summons a 1/1 College Freshwoman.",
+        effect: function(ECPlayer) {
+            EdenSummonCard(ECPlayer, "College Freshwoman");
+        }
     },
     {
         id: "rogue",
@@ -24,7 +29,7 @@ const EdenCardClasses = [
 const EdenCardDatabase = [
     {
         id: 1,
-        name: "Amanda",
+        name: "aaaa",
         class: "general",
         groups: ["Student"],
         type: "Member",
@@ -34,7 +39,7 @@ const EdenCardDatabase = [
     },
     {
         id: 2,
-        name: "Sarah",
+        name: "bbbb",
         class: "entertainer",
         groups: ["Student", "Submissive"],
         type: "Member",
@@ -87,7 +92,119 @@ const EdenCardDatabase = [
         class: "general",
         type: "action",
         enterFame: 0
-    }
+    },
+
+    // 1000 college
+    {
+        id: 1000,
+        name: "Amanda",
+        class: "college",
+        groups: ["Student"],
+        type: "Member",
+        enterFame: 1,
+        leaveFame: 4,
+        onEnter: function(ECPlayer) {
+            if (EdenCheckCardPresence(ECPlayer, "Sarah")) EdenPlayerAddFame(ECPlayer, 3);
+            EdenAddGameLog(`${ECPlayer.name} gained 3 Fame from Sarah and Amanda.`);
+        }
+    },
+    {
+        id: 1001,
+        name: "Sarah",
+        class: "college",
+        groups: ["Student", "Submissive"],
+        type: "Member",
+        enterFame: 1,
+        leaveFame: 4,
+        effect: "+3 Fame if Amanda is present.",
+        onEnter: function(ECPlayer) {
+            if (EdenCheckCardPresence(ECPlayer, "Amanda")) EdenPlayerAddFame(ECPlayer, 3);
+            EdenAddGameLog(`${ECPlayer.name} gained 3 Fame from Sarah and Amanda.`);
+        }
+    },
+    {
+        id: 1002,
+        name: "Sidney",
+        class: "college",
+        groups: ["Student"],
+        type: "Member",
+        enterFame: -1,
+        leaveFame: 5,
+        effect: "Leaves: +2 Fame per Student present.",
+        onLeave: function(ECPlayer) {
+            const fameGain = EdenCheckGroupCountPresence(ECPlayer, "Student") * 2;
+            EdenPlayerAddFame(ECPlayer, fameGain);
+            EdenAddGameLog(`${ECPlayer.name} gained ${fameGain} Fame from Sidney leaving.`);
+        }
+    },
+    {
+        id: 1003,
+        name: "Jennifer",
+        class: "college",
+        groups: ["Student"],
+        type: "Member",
+        enterFame: 3,
+        leaveFame: 3,
+    },
+    {
+        id: 1004,
+        name: "Teacher's Aide",
+        class: "college",
+        groups: ["Student", "Teacher"],
+        type: "Member",
+        enterFame: 3,
+        leaveFame: 3
+    },
+    {
+        id: 1005,
+        name: "Julia",
+        class: "college",
+        groups: ["Teacher"],
+        type: "Member",
+        enterFame: 1,
+        leaveFame: 4
+    },
+    {
+        id: 1006,
+        name: "Yuki",
+        class: "college",
+        groups: ["Teacher"],
+        type: "Member",
+        enterFame: 1,
+        leaveFame: 4
+    },
+    {
+        id: 1007,
+        name: "Mildred",
+        class: "college",
+        groups: ["Student"],
+        type: "Member",
+        enterFame: 2,
+        leaveFame: 1,
+        effect: "+1 Fame when a Student leaves.",
+        onMemberLeave: function(ECPlayer) {
+            EdenPlayerAddFame(ECPlayer, 1);
+            EdenAddGameLog(`${ECPlayer.name} gained 1 Fame from Mildred.`);
+        }
+    },
+    {
+        id: 1008,
+        name: "Substitute Teacher",
+        class: "college",
+        groups: ["Teacher"],
+        type: "Member",
+        enterFame: 1,
+        leaveFame: 4
+    },
+    {
+        id: 1009,
+        name: "Hidden Genius",
+        class: "college",
+        groups: ["Student"],
+        type: "Member",
+        enterFame: 1,
+        leaveFame: 4
+    },
 ];
 
 function EdenGetCardById(cardId) {

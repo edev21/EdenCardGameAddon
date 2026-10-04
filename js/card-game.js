@@ -17,6 +17,9 @@ let EdenGameOpenButtonElement = null;
 // Position in the player's hand of the card waiting for a slot, or null.
 let EdenSelectedHandIndex = null;
 
+// Whether the player's resting room window is open.
+let EdenRestingRoomOpen = false;
+
 /*
 Finds or creates the main game container.
 */
@@ -115,6 +118,7 @@ function EdenCloseCardGame() {
     EdenShowGameOpenButton();
     EdenGameState = null;
     EdenSelectedHandIndex = null;
+    EdenRestingRoomOpen = false;
     if (!EdenGameContainer) return;
     EdenGameContainer.classList.remove("eden-card-game-game-visible");
 }
@@ -188,11 +192,12 @@ card-game-state.js.
 */
 function EdenStartGame(deck) {
     EdenSelectedHandIndex = null;
+    EdenRestingRoomOpen = false;
     EdenCreateGameState(deck);
     EdenPlayerDrawCard(EdenGameState.player, 5);
     EdenPlayerDrawCard(EdenGameState.opponent, 5);
     EdenShowGameBoard();
-    EdenTurnStart("player");
+    EdenTurnStart(EdenGameState.currentTurn);
 }
 
 /*
@@ -220,6 +225,7 @@ function EdenShowGameBoard() {
 
     screen.appendChild(field);
     screen.appendChild(EdenCreateGameChatPanel());
+    if (EdenRestingRoomOpen) screen.appendChild(EdenCreateRestingRoomWindow());
 
     EdenGameContentElement.appendChild(screen);
 }
@@ -288,7 +294,7 @@ Plays the selected hand card into the clicked slot on the player's board.
 function EdenHandleSlotClick(boardIndex) {
     if (EdenSelectedHandIndex === null) return;
 
-    EdenPlayCard(EdenSelectedHandIndex, boardIndex);
+    EdenPlayCard(EdenGameState.player, EdenSelectedHandIndex, boardIndex);
     EdenSelectedHandIndex = null;
     EdenShowGameBoard();
 }
@@ -311,7 +317,12 @@ function EdenCreateGameBoardRow(side) {
             const card = EdenGetCardById(boardCard);
             if (card) {
                 slot.classList.add("eden-game-board-slot-filled");
-                slot.appendChild(EdenCardGameRenderCard(card));
+                const cardElement = EdenCardGameRenderCard(card);
+                cardElement.addEventListener("contextmenu", event => {
+                    event.preventDefault();
+                    EdenShowCardPreview(card);
+                });
+                slot.appendChild(cardElement);
             }
         } else {
             slot.appendChild(
@@ -486,6 +497,17 @@ function EdenCreateGameChatPanel() {
 
     settingsButton.disabled = true;
 
+    const restingRoomButton = EdenCreateElement(
+        "button",
+        "eden-deck-builder-button eden-game-action-button",
+        "Resting Room"
+    );
+
+    restingRoomButton.addEventListener("click", () => {
+        EdenRestingRoomOpen = true;
+        EdenShowGameBoard();
+    });
+
     const exitButton = EdenCreateElement(
         "button",
         "eden-deck-builder-button eden-game-action-button eden-game-exit-button",
@@ -497,12 +519,55 @@ function EdenCreateGameChatPanel() {
     buttons.appendChild(drawButton);
     buttons.appendChild(passButton);
     buttons.appendChild(settingsButton);
+    buttons.appendChild(restingRoomButton);
     buttons.appendChild(exitButton);
 
     panel.appendChild(chatLog);
     panel.appendChild(buttons);
 
     return panel;
+}
+
+/*
+Creates the window listing the cards in the player's resting room.
+*/
+function EdenCreateRestingRoomWindow() {
+    const overlay = EdenCreateElement("div", "eden-game-resting-room-overlay");
+    const roomWindow = EdenCreateElement("div", "eden-game-resting-room-window");
+
+    roomWindow.appendChild(EdenCreateElement("h2", "eden-game-resting-room-title", "Resting Room"));
+
+    const cardList = EdenCreateElement("div", "eden-game-resting-room-cards");
+
+    for (const cardId of EdenGameState.player.restingRoom) {
+        const card = EdenGetCardById(cardId);
+        if (!card) continue;
+
+        const cardElement = EdenCardGameRenderCard(card);
+        cardElement.addEventListener("contextmenu", event => {
+            event.preventDefault();
+            EdenShowCardPreview(card);
+        });
+        cardList.appendChild(cardElement);
+    }
+
+    if (!cardList.hasChildNodes()) cardList.appendChild(EdenCreateElement("div", "eden-game-resting-room-empty", "Your resting room is empty."));
+
+    const closeButton = EdenCreateElement(
+        "button",
+        "eden-deck-builder-button eden-game-action-button",
+        "Close"
+    );
+
+    closeButton.addEventListener("click", () => {
+        EdenRestingRoomOpen = false;
+        EdenShowGameBoard();
+    });
+
+    roomWindow.appendChild(cardList);
+    roomWindow.appendChild(closeButton);
+    overlay.appendChild(roomWindow);
+    return overlay;
 }
 
 document.addEventListener("DOMContentLoaded", EdenInitializeGame);
