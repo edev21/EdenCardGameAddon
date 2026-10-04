@@ -85,9 +85,14 @@ function EdenEnsureCardPreviewOverlay() {
     closes it (see the overlay's own listeners above).
 */
 function EdenShowCardPreview(card) {
+    EdenShowPreviewElement(EdenCardGameRenderCard(card));
+}
+
+// Shows any element (a card, an ability) in the preview overlay.
+function EdenShowPreviewElement(element) {
     EdenEnsureCardPreviewOverlay();
     EdenCardPreviewOverlay.innerHTML = "";
-    EdenCardPreviewOverlay.appendChild(EdenCardGameRenderCard(card));
+    EdenCardPreviewOverlay.appendChild(element);
     EdenCardPreviewOverlay.classList.add("eden-card-preview-visible");
 }
 

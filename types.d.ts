@@ -7,11 +7,21 @@ interface EdenCard {
     leaveFame?: number;
     groups?: string[];
     effect?: string;
+    hidden?: boolean;
     canPlay?: (player: any) => boolean;
     onEnter?: (player: any) => void;
     onLeave?: (player: any) => void;
     onMemberLeave?: (player: any) => void;
     onMemberEnter?: (player: any) => void;
+}
+
+interface EdenCardClass {
+    id: string;
+    name: string;
+    abilityName?: string;
+    abilityDescription?: string;
+    targetSlot?: boolean;
+    effect?: (player: any, boardIndex?: number) => void;
 }
 
 interface Window {

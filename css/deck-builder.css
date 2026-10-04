@@ -732,11 +732,6 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
     height: 100%;
 }
 
-.eden-game-board-slot-placeholder {
-    font-size: 22px;
-    opacity: 0.35;
-}
-
 /* A slot the selected card can be played into. The overlay sits above the card already in it. */
 .eden-game-board-slot-target {
     position: relative;
@@ -862,30 +857,90 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
 }
 
 .eden-game-player-fame-value {
-    font-size: 36cqw;
+    font-size: 26cqw;
     font-weight: bold;
     line-height: 1;
     color: var(--eden-accent);
 }
 
 .eden-game-player-fame-label {
-    font-size: 7cqw;
+    font-size: 6cqw;
     text-transform: uppercase;
     letter-spacing: 1px;
     opacity: 0.65;
 }
 
+/* Square, sized from the card width. Holds the button so right-clicks still work while it is disabled. */
+.eden-game-ability-slot {
+    flex: 0 0 auto;
+    align-self: center;
+    height: calc(var(--eden-card-width) * 0.85);
+    aspect-ratio: 1 / 1;
+}
+
 /* The id selector is needed to beat "#eden-card-game-game button { font: inherit }". */
 #eden-card-game-game .eden-game-ability-button {
-    flex: 0 0 auto;
-    padding: 6cqw 0;
-    font-size: 10cqw;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    overflow: hidden;
+    background: var(--eden-surface-muted);
+    color: var(--eden-text);
+    font-size: 8cqw;
     font-weight: bold;
+}
+
+#eden-card-game-game .eden-game-ability-button:hover {
+    background: var(--eden-surface-hover);
+}
+
+.eden-game-ability-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 #eden-card-game-game .eden-game-ability-button:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Enlarged ability shown on right-click, sized like a card preview. */
+.eden-ability-preview {
+    width: min(56vh, 440px);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--eden-border-strong);
+    border-radius: 10px;
+    background: var(--eden-surface);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    text-align: center;
+}
+
+.eden-ability-preview-image {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.eden-ability-preview-name {
+    font-size: 26px;
+    font-weight: bold;
+    color: var(--eden-accent);
+}
+
+.eden-ability-preview-effect {
+    font-size: 18px;
+    line-height: 1.4;
+}
+
+/* Waiting for a board slot. */
+#eden-card-game-game .eden-game-ability-button-selected {
+    box-shadow: 0 0 0 3px var(--eden-accent);
 }
 
 .eden-game-chat-panel {

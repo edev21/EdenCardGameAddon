@@ -36,6 +36,7 @@ function EdenCreateGameState(deck) {
     EdenGameState = {
         currentTurn: startingPlayer,
         actionsRemaining: 2,
+        abilityUsed: false,
 
         gameOver: false,
         winner: null,
@@ -86,16 +87,27 @@ This is currently exposed to the UI.
 function EdenDrawCardButton() {
     if (!EdenGameState) return false;
     if (EdenGameState.currentTurn !== "player") return false;
-    if (EdenGameState.player.deck.length === 0) {
-        EdenAddGameLog("You cannot draw. Your deck is empty.");
-        return false;
-    }
-    return EdenPlayerDrawCard(EdenGameState.player, 1);
+    return EdenDrawAction(EdenGameState.player);
 }
 
 /*
-Ends the player's turn.
-The opponent turn is intentionally not implemented yet.
+Draws one card as an action, used by both the Draw button and the AI.
+*/
+function EdenDrawAction(ECPlayer) {
+    if (EdenGameState.actionsRemaining <= 0) return false;
+    const isPlayer = ECPlayer === EdenGameState.player;
+    if (ECPlayer.deck.length === 0) {
+        EdenAddGameLog(isPlayer ? "You cannot draw. Your deck is empty." : "The opponent cannot draw. Their deck is empty.");
+        return false;
+    }
+    EdenPlayerDrawCard(ECPlayer, 1);
+    EdenGameState.actionsRemaining--;
+    EdenAddGameLog(isPlayer ? "You drew a card." : "The opponent drew a card.");
+    return true;
+}
+
+/*
+Ends the player's turn and starts the opponent's.
 */
 function EdenEndTurn() {
     if (!EdenGameState) return false;
@@ -115,13 +127,30 @@ The actual card effects will be added later.
 */
 function EdenPlayCard(ECPlayer, handIndex, boardIndex) {
     if (!EdenGameState) return false;
-    if (EdenGameState.currentTurn !== "player") return false;
+    if (EdenGameState[EdenGameState.currentTurn] !== ECPlayer) return false;
     if (EdenGameState.actionsRemaining <= 0) return false;
 
     if (handIndex < 0 || handIndex >= ECPlayer.hand.length) return false;
     if (boardIndex < 0 || boardIndex >= ECPlayer.board.length) return false;
 
     const cardId = ECPlayer.hand.splice(handIndex, 1)[0];
+    const replaced = EdenPlaceCard(ECPlayer, cardId, boardIndex);
+    const card = EdenGetCardById(cardId);
+
+    EdenGameState.actionsRemaining--;
+
+    const who = ECPlayer === EdenGameState.player ? "You" : "The opponent";
+    if (card && replaced) EdenAddGameLog(`${who} played ${card.name}, replacing ${replaced.name}.`);
+    else if (card) EdenAddGameLog(`${who} played ${card.name}.`);
+
+    return true;
+}
+
+/*
+Puts a card into a board slot, applying its enter Fame/effect.
+A member already in that slot leaves to the resting room. Returns the replaced card, or null.
+*/
+function EdenPlaceCard(ECPlayer, cardId, boardIndex) {
     const replacedId = ECPlayer.board[boardIndex];
     const card = EdenGetCardById(cardId);
     const replaced = replacedId !== null ? EdenGetCardById(replacedId) : null;
@@ -132,13 +161,30 @@ function EdenPlayCard(ECPlayer, handIndex, boardIndex) {
 
     if (replacedId !== null) ECPlayer.restingRoom.push(replacedId);
     ECPlayer.board[boardIndex] = cardId;
+    return replaced;
+}
+
+function EdenGetPlayerClass(ECPlayer) {
+    return EdenCardClasses.find(cardClass => cardClass.id === ECPlayer.fullDeck.class);
+}
+
+/*
+Uses the player's class ability. Costs one action and can be used once per turn.
+Abilities with targetSlot need the board slot the player chose.
+*/
+function EdenUseAbility(ECPlayer, boardIndex) {
+    if (!EdenGameState) return false;
+    if (EdenGameState[EdenGameState.currentTurn] !== ECPlayer) return false;
+    if (EdenGameState.actionsRemaining <= 0 || EdenGameState.abilityUsed) return false;
+
+    const cardClass = EdenGetPlayerClass(ECPlayer);
+    if (!cardClass?.effect) return false;
+    if (cardClass.targetSlot && (boardIndex === undefined || boardIndex < 0 || boardIndex >= ECPlayer.board.length)) return false;
 
     EdenGameState.actionsRemaining--;
-
-
-    if (card && replaced) EdenAddGameLog(`You played ${card.name}, replacing ${replaced.name}.`);
-    else if (card) EdenAddGameLog(`You played ${card.name}.`);
-
+    EdenGameState.abilityUsed = true;
+    EdenAddGameLog(`${ECPlayer === EdenGameState.player ? "You" : "The opponent"} used ${cardClass.abilityName}.`);
+    cardClass.effect(ECPlayer, boardIndex);
     return true;
 }
 
@@ -163,42 +209,47 @@ function EdenPlayerDrawCard(player, amount) {
 function EdenTurnStart(turnPlayer) {
     if (!EdenGameState) return false;
     EdenGameState.actionsRemaining = 2;
+    EdenGameState.abilityUsed = false;
     let ECPlayer = EdenGameState[turnPlayer];
     ECPlayer.turnNumber++;
     EdenPlayerDrawCard(ECPlayer, 1);
     if (!ECPlayer.online) AITurn(ECPlayer);
 }
 
+/*
+Plays the AI's turn: each action plays a card if it can, otherwise draws.
+The board is redrawn after every action, 0.2 seconds apart.
+*/
 async function AITurn(ECPlayer) {
-    if (!EdenGameState) return false;
-    if (EdenGameState.currentTurn !== "opponent") return false;
+    const gameState = EdenGameState;
+    if (!gameState || gameState.currentTurn !== "opponent") return false;
+    EdenShowGameBoard();
 
-    EdenGameState.currentTurn = "player";
-    EdenGameState.actionsRemaining = 2;
-
-    await aiPlayCard(ECPlayer);
-    if (EdenGameState.actionsRemaining > 0) {
-        EdenPlayerDrawCard(ECPlayer, 1);
-        EdenGameState.actionsRemaining--;
+    while (gameState.actionsRemaining > 0) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        // Stop if the game was closed or restarted during the delay.
+        if (EdenGameState !== gameState) return false;
+        if (!aiPlayCard(ECPlayer) && !EdenDrawAction(ECPlayer)) break;
+        EdenShowGameBoard();
     }
-    if (EdenGameState.actionsRemaining > 0) await aiPlayCard(ECPlayer);
 
-    EdenEndTurn();
+    gameState.currentTurn = "player";
+    EdenAddGameLog("The opponent ended their turn.");
+    EdenTurnStart("player");
+    EdenShowGameBoard();
+    return true;
 }
 
-async function aiPlayCard(ECPlayer) {
-    while (EdenGameState.actionsRemaining > 0) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        const availableCards = ECPlayer.hand.filter(cardId => {
-            const card = EdenGetCardById(cardId);
-            return !card?.canPlay || card.canPlay(ECPlayer);
-        });
-        if (availableCards.length === 0) break;
-        const randomIndex = Math.floor(Math.random() * availableCards.length);
-        const cardId = availableCards[randomIndex];
-        const randomBoardIndex = Math.floor(Math.random() * ECPlayer.board.length);
-        EdenPlayCard(ECPlayer, ECPlayer.hand.indexOf(cardId), randomBoardIndex);
-    }
+function aiPlayCard(ECPlayer) {
+    const availableCards = ECPlayer.hand.filter(cardId => {
+        const card = EdenGetCardById(cardId);
+        return !card?.canPlay || card.canPlay(ECPlayer);
+    });
+    if (availableCards.length === 0) return false;
+    const randomIndex = Math.floor(Math.random() * availableCards.length);
+    const cardId = availableCards[randomIndex];
+    const randomBoardIndex = Math.floor(Math.random() * ECPlayer.board.length);
+    return EdenPlayCard(ECPlayer, ECPlayer.hand.indexOf(cardId), randomBoardIndex);
 }
 
 function EdenCheckCardPresence(player, cardName) {
@@ -215,10 +266,10 @@ function EdenCheckGroupCountPresence(player, groupName) {
     }).length;
 }
 
-function EdenSummonCard(ECPlayer, cardName) {
+function EdenSummonCard(ECPlayer, cardName, boardIndex) {
     if (!EdenGameState) return false;
     const card = EdenCardDatabase.find(c => c.name === cardName);
     if (!card) return false;
-    ECPlayer.board.push(card.id);
+    EdenPlaceCard(ECPlayer, card.id, boardIndex);
     return true;
 }

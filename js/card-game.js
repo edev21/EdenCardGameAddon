@@ -10,12 +10,18 @@ This file is responsible only for:
 Game state and game rules are handled by card-game-state.js.
 */
 
+// The addon's root folder, used to load images from assets/.
+const EdenAddonBaseUrl = document.currentScript instanceof HTMLScriptElement ? new URL("../", document.currentScript.src).href : "";
+
 let EdenGameContainer = null;
 let EdenGameContentElement = null;
 let EdenGameOpenButtonElement = null;
 
 // Position in the player's hand of the card waiting for a slot, or null.
 let EdenSelectedHandIndex = null;
+
+// Whether the player's class ability is waiting for a board slot.
+let EdenAbilitySelecting = false;
 
 // Whether the player's resting room window is open.
 let EdenRestingRoomOpen = false;
@@ -84,8 +90,9 @@ function EdenInitializeGame() {
     EdenShowGameOpenButton();
 
     document.addEventListener("keydown", event => {
-        if (event.key !== "Escape" || EdenSelectedHandIndex === null) return;
+        if (event.key !== "Escape" || (EdenSelectedHandIndex === null && !EdenAbilitySelecting)) return;
         EdenSelectedHandIndex = null;
+        EdenAbilitySelecting = false;
         EdenShowGameBoard();
     });
 }
@@ -118,6 +125,7 @@ function EdenCloseCardGame() {
     EdenShowGameOpenButton();
     EdenGameState = null;
     EdenSelectedHandIndex = null;
+    EdenAbilitySelecting = false;
     EdenRestingRoomOpen = false;
     if (!EdenGameContainer) return;
     EdenGameContainer.classList.remove("eden-card-game-game-visible");
@@ -192,6 +200,7 @@ card-game-state.js.
 */
 function EdenStartGame(deck) {
     EdenSelectedHandIndex = null;
+    EdenAbilitySelecting = false;
     EdenRestingRoomOpen = false;
     EdenCreateGameState(deck);
     EdenPlayerDrawCard(EdenGameState.player, 5);
@@ -285,17 +294,35 @@ function EdenHandleCardClick(handIndex) {
     if (gameState.currentTurn !== "player" || gameState.actionsRemaining <= 0) return;
 
     EdenSelectedHandIndex = EdenSelectedHandIndex === handIndex ? null : handIndex;
+    EdenAbilitySelecting = false;
     EdenShowGameBoard();
 }
 
 /*
-Plays the selected hand card into the clicked slot on the player's board.
+Uses the player's class ability. Instant abilities resolve right away;
+abilities with targetSlot wait for the player to pick a board slot.
+*/
+function EdenHandleAbilityClick() {
+    const cardClass = EdenGetPlayerClass(EdenGameState.player);
+
+    if (cardClass?.targetSlot) {
+        EdenAbilitySelecting = !EdenAbilitySelecting;
+        EdenSelectedHandIndex = null;
+    } else EdenUseAbility(EdenGameState.player);
+
+    EdenShowGameBoard();
+}
+
+/*
+Plays the selected hand card, or the waiting ability, into the clicked slot on the player's board.
 */
 function EdenHandleSlotClick(boardIndex) {
-    if (EdenSelectedHandIndex === null) return;
+    if (EdenAbilitySelecting) EdenUseAbility(EdenGameState.player, boardIndex);
+    else if (EdenSelectedHandIndex !== null) EdenPlayCard(EdenGameState.player, EdenSelectedHandIndex, boardIndex);
+    else return;
 
-    EdenPlayCard(EdenGameState.player, EdenSelectedHandIndex, boardIndex);
     EdenSelectedHandIndex = null;
+    EdenAbilitySelecting = false;
     EdenShowGameBoard();
 }
 
@@ -324,18 +351,10 @@ function EdenCreateGameBoardRow(side) {
                 });
                 slot.appendChild(cardElement);
             }
-        } else {
-            slot.appendChild(
-                EdenCreateElement(
-                    "div",
-                    "eden-game-board-slot-placeholder",
-                    String(i + 1)
-                )
-            );
         }
 
-        // With a hand card selected, every slot on the player's side (empty or not) is a valid target.
-        if (side === "player" && EdenSelectedHandIndex !== null) {
+        // With a hand card or ability waiting, every slot on the player's side (empty or not) is a valid target.
+        if (side === "player" && (EdenSelectedHandIndex !== null || EdenAbilitySelecting)) {
             slot.classList.add("eden-game-board-slot-target");
             slot.addEventListener("click", () => {
                 EdenHandleSlotClick(i);
@@ -372,18 +391,58 @@ function EdenCreateGamePlayerPanel(side) {
     fame.appendChild(EdenCreateElement("div", "eden-game-player-fame-label", "Fame"));
     panel.appendChild(fame);
 
-    const abilityButton = EdenCreateElement(
-        "button",
-        "eden-deck-builder-button eden-game-ability-button",
-        "Use Ability"
-    );
+    // Disabled buttons get no mouse events, so the right-click preview listens on this wrapper.
+    const abilitySlot = EdenCreateElement("div", "eden-game-ability-slot");
+    const abilityButton = EdenCreateElement("button", "eden-deck-builder-button eden-game-ability-button");
+    const cardClass = EdenGetPlayerClass(gameState[side]);
 
-    // Abilities have no game logic yet.
-    abilityButton.disabled = true;
-    abilityButton.title = "Abilities are not available yet.";
-    panel.appendChild(abilityButton);
+    // Falls back to the ability name as text when there is no image.
+    if (cardClass?.abilityName) {
+        const image = EdenCreateAbilityImage(cardClass, "eden-game-ability-image");
+        image.addEventListener("error", () => {
+            abilityButton.textContent = cardClass.abilityName;
+        });
+        abilityButton.appendChild(image);
+    } else abilityButton.textContent = "Use Ability";
+
+    abilitySlot.title = cardClass?.effect ? `${cardClass.abilityName}: ${cardClass.abilityDescription}` : "This class has no ability yet.";
+    abilityButton.disabled = side !== "player" || !cardClass?.effect || gameState.currentTurn !== "player" || gameState.actionsRemaining <= 0 || gameState.abilityUsed;
+    if (side === "player" && EdenAbilitySelecting) abilityButton.classList.add("eden-game-ability-button-selected");
+
+    abilityButton.addEventListener("click", EdenHandleAbilityClick);
+    abilitySlot.addEventListener("contextmenu", event => {
+        event.preventDefault();
+        if (cardClass?.abilityName) EdenShowAbilityPreview(cardClass);
+    });
+
+    abilitySlot.appendChild(abilityButton);
+    panel.appendChild(abilitySlot);
 
     return panel;
+}
+
+function EdenCreateAbilityImage(cardClass, className) {
+    const image = EdenCreateElement("img", className);
+    image.src = `${EdenAddonBaseUrl}assets/ability/${encodeURIComponent(cardClass.abilityName)}.png`;
+    image.alt = cardClass.abilityName;
+    image.draggable = false;
+    return image;
+}
+
+/*
+Shows a class ability enlarged, with its name and effect, like a card preview.
+*/
+function EdenShowAbilityPreview(cardClass) {
+    const preview = EdenCreateElement("div", "eden-ability-preview");
+    const image = EdenCreateAbilityImage(cardClass, "eden-ability-preview-image");
+    image.addEventListener("error", () => {
+        image.style.display = "none";
+    });
+
+    preview.appendChild(image);
+    preview.appendChild(EdenCreateElement("div", "eden-ability-preview-name", cardClass.abilityName));
+    preview.appendChild(EdenCreateElement("div", "eden-ability-preview-effect", cardClass.abilityDescription ?? ""));
+    EdenShowPreviewElement(preview);
 }
 
 /*
@@ -426,6 +485,16 @@ function EdenCreateGameCenterInfo() {
                 "div",
                 "eden-game-hint",
                 `Choose a slot for ${selectedCard.name} (Esc to cancel)`
+            )
+        );
+    }
+
+    if (EdenAbilitySelecting) {
+        center.appendChild(
+            EdenCreateElement(
+                "div",
+                "eden-game-hint",
+                `Choose a slot for ${EdenGetPlayerClass(gameState.player)?.abilityName} (Esc to cancel)`
             )
         );
     }

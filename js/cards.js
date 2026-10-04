@@ -1,18 +1,25 @@
 "use strict";
 
+/** @type {EdenCardClass[]} */
 const EdenCardClasses = [
     {
         id: "college",
         name: "College",
         abilityName: "First Bell",
         abilityDescription: "Summons a 1/1 College Freshwoman.",
-        effect: function(ECPlayer) {
-            EdenSummonCard(ECPlayer, "College Freshwoman");
+        targetSlot: true,
+        effect: function(ECPlayer, boardIndex) {
+            EdenSummonCard(ECPlayer, "College Freshwoman", boardIndex);
         }
     },
     {
-        id: "rogue",
-        name: "Rogue"
+        id: "shibari",
+        name: "Shibari",
+        abilityName: "Master Class",
+        abilityDescription: "+2 Fame.",
+        effect: function(ECPlayer) {
+            EdenPlayerAddFame(ECPlayer, 2);
+        }
     },
     {
         id: "merchant",
@@ -205,12 +212,23 @@ const EdenCardDatabase = [
         enterFame: 1,
         leaveFame: 4
     },
+    {
+        id: 1010,
+        name: "College Freshwoman",
+        class: "college",
+        groups: ["Student"],
+        type: "Member",
+        enterFame: 1,
+        leaveFame: 1,
+        hidden: true
+    },
 ];
 
 function EdenGetCardById(cardId) {
     return EdenCardDatabase.find(card => card.id === cardId);
 }
 
+// Hidden cards can't be added to decks; they only appear through effects.
 function EdenGetCardsForClass(classId) {
-    return EdenCardDatabase.filter(card => card.class === "general" || card.class === classId);
+    return EdenCardDatabase.filter(card => !card.hidden && (card.class === "general" || card.class === classId));
 }
