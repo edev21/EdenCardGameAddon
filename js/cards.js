@@ -23,11 +23,21 @@ const EdenCardClasses = [
     },
     {
         id: "merchant",
-        name: "Merchant"
+        name: "Merchant",
+        abilityName: "Master Class",
+        abilityDescription: "+2 Fame.",
+        effect: function(ECPlayer) {
+            EdenPlayerAddFame(ECPlayer, 2);
+        }
     },
     {
         id: "guardian",
-        name: "Guardian"
+        name: "Guardian",
+        abilityName: "Master Class",
+        abilityDescription: "+2 Fame.",
+        effect: function(ECPlayer) {
+            EdenPlayerAddFame(ECPlayer, 2);
+        }
     }
 ];
 
@@ -36,68 +46,278 @@ const EdenCardClasses = [
 const EdenCardDatabase = [
     {
         id: 1,
-        name: "aaaa",
+        name: "Accountant",
         class: "general",
-        groups: ["Student"],
+        groups: ["Staff"],
         type: "Member",
-        enterFame: 3,
-        leaveFame: 1,
-        effect: "something"
+        enterFame: 1,
+        effect: "Enters: Draw a card.",
+        onEnter: function(ECPlayer) {
+            EdenPlayerDrawCard(ECPlayer, 1);
+        }
     },
-    {
-        id: 2,
-        name: "bbbb",
-        class: "entertainer",
-        groups: ["Student", "Submissive"],
-        type: "Member",
-        enterFame: 8,
-        effect: "Enter: Gain 8 Fame."
-    },
+    // {
+    //     id: 2,
+    //     name: "Auctioneer",
+    //     class: "general",
+    //     groups: ["Staff"],
+    //     type: "Member",
+    //     enterFame: 3
+    // },
     {
         id: 3,
-        name: "Manager",
-        class: "entertainer",
-        type: "member",
-        enterFame: 2,
-        effect: "Adjacent Members cost 1 less."
+        name: "Bouncer",
+        class: "general",
+        type: "Member",
+        enterFame: 3,
+        effect: "Remove a Member from your club.",
+        onEnter: function(ECPlayer) {
+            // todo
+        }
     },
     {
         id: 4,
-        name: "Spy",
-        class: "rogue",
-        type: "member",
-        enterFame: 4,
-        effect: "Enter: Steal 4 Fame."
+        name: "Cute Girl Next Door",
+        class: "general",
+        type: "Member",
+        enterFame: 3
     },
     {
         id: 5,
-        name: "Merchant",
-        class: "merchant",
-        type: "member",
-        enterFame: 5,
-        effect: "Enter: Gain 2 Money."
+        name: "Kinky Neighbor",
+        class: "general",
+        type: "Member",
+        enterFame: 2
     },
     {
         id: 6,
-        name: "Bodyguard",
-        class: "guardian",
-        type: "member",
-        enterFame: 4,
-        effect: "Protect an adjacent Member."
+        name: "Ganguro Girl",
+        class: "general",
+        type: "Member",
+        enterFame: 3
     },
     {
         id: 7,
-        name: "Quick Fame",
+        name: "Country Gal",
         class: "general",
-        type: "action",
-        enterFame: 0,
-        effect: "Gain 5 Fame."
+        type: "Member",
+        enterFame: 0
     },
     {
         id: 8,
-        name: "Small Sponsor",
+        name: "Gambler",
         class: "general",
-        type: "action",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 9,
+        name: "Insurance Agent",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 10,
+        name: "Local Influencer",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 11,
+        name: "Party Animal",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 12,
+        name: "Secretary",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 13,
+        name: "Stalker",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 14,
+        name: "Troublemaker",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 15,
+        name: "Waitress",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 16,
+        name: "Wannabe Princess",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 17,
+        name: "Attention Whore",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 18,
+        name: "Public Advertisment",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 19,
+        name: "Uptown Girl",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 20,
+        name: "Collector",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 21,
+        name: "Larp Queen",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 22,
+        name: "Tourist",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 23,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 24,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 25,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 26,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 27,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 28,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 29,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 30,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 31,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 32,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 33,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 34,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 35,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 36,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 37,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
+        enterFame: 0
+    },
+    {
+        id: 38,
+        name: "Gambler",
+        class: "general",
+        type: "Member",
         enterFame: 0
     },
 
@@ -109,7 +329,7 @@ const EdenCardDatabase = [
         groups: ["Student"],
         type: "Member",
         enterFame: 1,
-        leaveFame: 4,
+        leaveFame: 3,
         onEnter: function(ECPlayer) {
             if (EdenCheckCardPresence(ECPlayer, "Sarah")) EdenPlayerAddFame(ECPlayer, 3);
             EdenAddGameLog(`${ECPlayer.name} gained 3 Fame from Sarah and Amanda.`);
@@ -122,11 +342,11 @@ const EdenCardDatabase = [
         groups: ["Student", "Submissive"],
         type: "Member",
         enterFame: 1,
-        leaveFame: 4,
-        effect: "+3 Fame if Amanda is present.",
+        leaveFame: 3,
+        effect: "+2 Fame if Amanda is present.",
         onEnter: function(ECPlayer) {
-            if (EdenCheckCardPresence(ECPlayer, "Amanda")) EdenPlayerAddFame(ECPlayer, 3);
-            EdenAddGameLog(`${ECPlayer.name} gained 3 Fame from Sarah and Amanda.`);
+            if (EdenCheckCardPresence(ECPlayer, "Amanda")) EdenPlayerAddFame(ECPlayer, 2);
+            EdenAddGameLog(`${ECPlayer.name} gained 2 Fame from Sarah and Amanda.`);
         }
     },
     {
@@ -150,8 +370,13 @@ const EdenCardDatabase = [
         class: "college",
         groups: ["Student"],
         type: "Member",
-        enterFame: 3,
-        leaveFame: 3,
+        prerequisite: "SelectOwnMember",
+        enterFame: 2,
+        leaveFame: 2,
+        effect: "Enters: Remove a member from your club.",
+        onEnter: function(ECPlayer) {
+
+        }
     },
     {
         id: 1004,
@@ -221,6 +446,16 @@ const EdenCardDatabase = [
         enterFame: 1,
         leaveFame: 1,
         hidden: true
+    },
+    {
+        id: 1011,
+        name: "Homeroom",
+        class: "college",
+        type: "Event",
+        effect: "+3 Fame per Student present.",
+        onEnter: function(ECPlayer) {
+            EdenPlayerAddFame(ECPlayer, EdenCheckGroupCountPresence(ECPlayer, "Student") * 3);
+        }
     },
 ];
 

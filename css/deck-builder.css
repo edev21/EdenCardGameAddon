@@ -470,6 +470,13 @@ html.eden-card-game-game-open {
     object-position: center;
 }
 
+.eden-card-game-card-sleeve-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 .eden-card-game-card-no-image .eden-card-game-card-image-area {
     background: #e7d8c2;
 }
@@ -768,13 +775,43 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
     content: "Replace";
 }
 
+/* A selected event card: the whole board is one target. */
+.eden-game-board-row-target {
+    position: relative;
+    cursor: pointer;
+}
+
+.eden-game-board-row-target::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid var(--eden-accent);
+    border-radius: 8px;
+    font-size: calc(var(--eden-card-width) * 0.2);
+    font-weight: bold;
+    pointer-events: none;
+    animation: eden-game-target-pulse 1.2s ease-in-out infinite;
+}
+
+.eden-game-board-row-target:hover::after {
+    animation: none;
+    background: rgba(42, 31, 22, 0.6);
+    color: #ffffff;
+    content: "Play event";
+}
+
 @keyframes eden-game-target-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.35; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .eden-game-board-slot-target::after {
+    .eden-game-board-slot-target::after,
+    .eden-game-board-row-target::after {
         animation: none;
     }
 }

@@ -258,9 +258,10 @@ function EdenCreateGameHandRow(side) {
         const card = EdenGetCardById(cardId);
         if (!card) continue;
 
-        const cardElement = EdenCardGameRenderCard(card, {
-            clickable: side === "player"
-        });
+        // The opponent's hand is face down.
+        const cardElement = side === "player"
+            ? EdenCardGameRenderCard(card, { clickable: true })
+            : EdenCardGameRenderSleeve();
 
         // The CSS fans the cards out (and overlaps them when the hand is wide) from these.
         cardElement.style.setProperty("--eden-hand-index", String(index++));
@@ -271,12 +272,12 @@ function EdenCreateGameHandRow(side) {
             cardElement.addEventListener("click", () => {
                 EdenHandleCardClick(handIndex);
             });
-        }
 
-        cardElement.addEventListener("contextmenu", event => {
-            event.preventDefault();
-            EdenShowCardPreview(card);
-        });
+            cardElement.addEventListener("contextmenu", event => {
+                event.preventDefault();
+                EdenShowCardPreview(card);
+            });
+        } else cardElement.addEventListener("contextmenu", event => event.preventDefault());
 
         row.appendChild(cardElement);
     }
@@ -336,6 +337,15 @@ function EdenCreateGameBoardRow(side) {
         `eden-game-board-row eden-game-board-row-${side}`
     );
 
+    // A selected event card targets the whole board instead of a single slot.
+    const selectedEvent = side === "player" && EdenSelectedHandIndex !== null && EdenIsEventCard(EdenGetCardById(gameState.player.hand[EdenSelectedHandIndex]));
+    if (selectedEvent) {
+        row.classList.add("eden-game-board-row-target");
+        row.addEventListener("click", () => {
+            EdenHandleSlotClick(null);
+        });
+    }
+
     for (let i = 0; i < 4; i++) {
         const slot = EdenCreateElement("div", "eden-game-board-slot");
         const boardCard = gameState[side].board[i];
@@ -354,7 +364,7 @@ function EdenCreateGameBoardRow(side) {
         }
 
         // With a hand card or ability waiting, every slot on the player's side (empty or not) is a valid target.
-        if (side === "player" && (EdenSelectedHandIndex !== null || EdenAbilitySelecting)) {
+        if (side === "player" && !selectedEvent && (EdenSelectedHandIndex !== null || EdenAbilitySelecting)) {
             slot.classList.add("eden-game-board-slot-target");
             slot.addEventListener("click", () => {
                 EdenHandleSlotClick(i);
@@ -484,7 +494,9 @@ function EdenCreateGameCenterInfo() {
             EdenCreateElement(
                 "div",
                 "eden-game-hint",
-                `Choose a slot for ${selectedCard.name} (Esc to cancel)`
+                EdenIsEventCard(selectedCard)
+                    ? `Click the board to play ${selectedCard.name} (Esc to cancel)`
+                    : `Choose a slot for ${selectedCard.name} (Esc to cancel)`
             )
         );
     }
@@ -561,7 +573,7 @@ function EdenCreateGameChatPanel() {
     const settingsButton = EdenCreateElement(
         "button",
         "eden-deck-builder-button eden-game-action-button",
-        "Settings"
+        ""
     );
 
     settingsButton.disabled = true;

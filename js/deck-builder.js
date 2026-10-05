@@ -11,7 +11,7 @@ let EdenCurrentScreen = "deck-list";
 const EdenDefaultDeck = {
   "id": "Default Deck",
   "name": "Default Deck",
-  "class": "entertainer",
+  "class": "shibari",
   "cards": [ 1, 1, 2, 2, 3, 3, 8, 1, 2, 2, 3, 3, 8, 1, 2, 2, 3, 3, 8, 1, 2, 2, 3, 3, 8 ]
 }
 

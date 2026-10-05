@@ -93,3 +93,20 @@ function EdenCardGameRenderCard(card, options = {}) {
 
     return cardElement;
 }
+
+/*
+    A face-down card (e.g. the opponent's hand). It shows nothing about the card.
+*/
+function EdenCardGameRenderSleeve() {
+    const cardElement = document.createElement("div");
+    cardElement.className = "eden-card-game-card eden-card-game-card-sleeve";
+
+    const image = document.createElement("img");
+    image.className = "eden-card-game-card-sleeve-image";
+    image.src = `${EdenCardImageFolder}Sleeve/0.png`;
+    image.alt = "Card";
+    image.draggable = false;
+
+    cardElement.appendChild(image);
+    return cardElement;
+}

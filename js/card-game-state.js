@@ -101,7 +101,7 @@ function EdenDrawAction(ECPlayer) {
         return false;
     }
     EdenPlayerDrawCard(ECPlayer, 1);
-    EdenGameState.actionsRemaining--;
+    EdenUseAction(ECPlayer);
     EdenAddGameLog(isPlayer ? "You drew a card." : "The opponent drew a card.");
     return true;
 }
@@ -120,10 +120,14 @@ function EdenEndTurn() {
     return true;
 }
 
+function EdenIsEventCard(card) {
+    return card?.type?.toLowerCase() === "event";
+}
+
 /*
 Plays the card at handIndex into the player's board slot boardIndex.
 A member already in that slot is replaced and sent to the resting room.
-The actual card effects will be added later.
+Event cards ignore boardIndex: their effect runs and they go straight to the resting room.
 */
 function EdenPlayCard(ECPlayer, handIndex, boardIndex) {
     if (!EdenGameState) return false;
@@ -131,19 +135,38 @@ function EdenPlayCard(ECPlayer, handIndex, boardIndex) {
     if (EdenGameState.actionsRemaining <= 0) return false;
 
     if (handIndex < 0 || handIndex >= ECPlayer.hand.length) return false;
+    if (EdenIsEventCard(EdenGetCardById(ECPlayer.hand[handIndex]))) return EdenPlayEvent(ECPlayer, handIndex);
     if (boardIndex < 0 || boardIndex >= ECPlayer.board.length) return false;
 
     const cardId = ECPlayer.hand.splice(handIndex, 1)[0];
     const replaced = EdenPlaceCard(ECPlayer, cardId, boardIndex);
     const card = EdenGetCardById(cardId);
 
-    EdenGameState.actionsRemaining--;
+    EdenUseAction(ECPlayer);
 
     const who = ECPlayer === EdenGameState.player ? "You" : "The opponent";
     if (card && replaced) EdenAddGameLog(`${who} played ${card.name}, replacing ${replaced.name}.`);
     else if (card) EdenAddGameLog(`${who} played ${card.name}.`);
 
     return true;
+}
+
+function EdenPlayEvent(ECPlayer, handIndex) {
+    const cardId = ECPlayer.hand.splice(handIndex, 1)[0];
+    const card = EdenGetCardById(cardId);
+
+    EdenUseAction(ECPlayer);
+    if (card) EdenAddGameLog(`${ECPlayer === EdenGameState.player ? "You" : "The opponent"} played ${card.name}.`);
+
+    EdenPlayerAddFame(ECPlayer, card?.enterFame ?? 0);
+    if (card?.onEnter) card.onEnter(ECPlayer);
+    ECPlayer.restingRoom.push(cardId);
+    return true;
+}
+
+function EdenUseAction(ECPlayer) {
+    EdenGameState.actionsRemaining--;
+    if (EdenGameState.actionsRemaining <= 0) EdenEndTurn();
 }
 
 /*
@@ -154,10 +177,12 @@ function EdenPlaceCard(ECPlayer, cardId, boardIndex) {
     const replacedId = ECPlayer.board[boardIndex];
     const card = EdenGetCardById(cardId);
     const replaced = replacedId !== null ? EdenGetCardById(replacedId) : null;
-    EdenPlayerAddFame(ECPlayer, card?.enterFame ?? 0);
-    if (card?.onEnter) card.onEnter(ECPlayer);
     EdenPlayerAddFame(ECPlayer, replaced?.leaveFame ?? 0);
     if (replaced?.onLeave) replaced.onLeave(ECPlayer);
+
+    
+    EdenPlayerAddFame(ECPlayer, card?.enterFame ?? 0);
+    if (card?.onEnter) card.onEnter(ECPlayer);
 
     if (replacedId !== null) ECPlayer.restingRoom.push(replacedId);
     ECPlayer.board[boardIndex] = cardId;
@@ -181,7 +206,7 @@ function EdenUseAbility(ECPlayer, boardIndex) {
     if (!cardClass?.effect) return false;
     if (cardClass.targetSlot && (boardIndex === undefined || boardIndex < 0 || boardIndex >= ECPlayer.board.length)) return false;
 
-    EdenGameState.actionsRemaining--;
+    EdenUseAction(ECPlayer);
     EdenGameState.abilityUsed = true;
     EdenAddGameLog(`${ECPlayer === EdenGameState.player ? "You" : "The opponent"} used ${cardClass.abilityName}.`);
     cardClass.effect(ECPlayer, boardIndex);
