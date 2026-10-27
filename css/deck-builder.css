@@ -3,20 +3,24 @@
 #eden-open-deck-builder-button,
 #eden-card-game-game,
 #eden-open-game-button,
+#eden-online-lobby,
+#eden-tooltip,
 #eden-card-preview-overlay {
-    --eden-background: #f6f1e8;
-    --eden-surface: #fffdf9;
-    --eden-surface-muted: #ece2d2;
-    --eden-surface-hover: #e4d3bb;
-    --eden-text: #3b2d22;
-    --eden-border: #c8b49a;
-    --eden-border-strong: #9b7652;
-    --eden-accent: #805a35;
-    --eden-accent-hover: #68472b;
+    --eden-background: #eef2f7;
+    --eden-surface: #f9fbfd;
+    --eden-surface-muted: #e2e8f0;
+    --eden-surface-hover: #d3dce8;
+    --eden-text: #1e293b;
+    --eden-border: #c3cedb;
+    --eden-border-strong: #8a9bb3;
+    --eden-accent: #2f5d9e;
+    --eden-accent-hover: #234a80;
     --eden-accent-text: #ffffff;
-    --eden-enter-fame: #e8bd55;
-    --eden-leave-fame: #d98270;
-    --eden-preview-scrim: rgba(42, 31, 22, 0.66);
+    --eden-entry-fame: #8fd8ef;
+    --eden-exit-fame: #b9b3f2;
+    --eden-danger: #d95c6a;
+    --eden-danger-hover: #c2414f;
+    --eden-preview-scrim: rgba(15, 23, 42, 0.7);
 }
 
 #eden-card-game-deck-builder * {
@@ -99,6 +103,12 @@ html.eden-card-game-game-open {
 }
 
 #eden-open-game-button.eden-open-game-button-hidden {
+    display: none;
+}
+
+/* Inside the host game, the Eden Card Club room's dealer opens the game and deck builder instead (eden-room.js). */
+.eden-in-host-game #eden-open-deck-builder-button,
+.eden-in-host-game #eden-open-game-button {
     display: none;
 }
 
@@ -280,9 +290,10 @@ html.eden-card-game-game-open {
     font-size: 24px;
 }
 
+/* Exactly the window height, so the card list and the deck list each scroll on their own. */
 .eden-deck-editor-screen {
     width: 100%;
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     flex-direction: column;
 }
@@ -299,16 +310,28 @@ html.eden-card-game-game-open {
 
 .eden-deck-editor-top-left {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
 }
 
+/* Right padding leaves room for the fixed close (X) button in the top-right corner (36px wide, 14px from the edge). */
 .eden-deck-editor-top-right {
     display: flex;
     justify-content: flex-end;
+    padding-right: 50px;
 }
 
 .eden-deck-builder-small-button {
     padding: 8px 14px;
+}
+
+/* Destructive actions (Delete Deck), in the same red as the game's Exit button. */
+.eden-deck-builder-danger-button {
+    background: var(--eden-danger);
+}
+
+.eden-deck-builder-danger-button:hover {
+    background: var(--eden-danger-hover);
 }
 
 .eden-deck-editor-title-area {
@@ -322,6 +345,106 @@ html.eden-card-game-game-open {
 .eden-deck-editor-class {
     margin-top: 3px;
     font-size: 12px;
+    opacity: 0.6;
+}
+
+/* No bottom padding: the tabs sit on the bar's bottom edge. The other controls keep their own spacing below. */
+.eden-deck-editor-search-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 8px 15px 0;
+    border-bottom: 1px solid var(--eden-border);
+    background: var(--eden-surface);
+}
+
+.eden-deck-editor-search-input,
+.eden-deck-editor-toolbar-button {
+    margin-bottom: 8px;
+}
+
+.eden-deck-editor-search-input {
+    width: 240px;
+    max-width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--eden-border-strong);
+    border-radius: 5px;
+    background: var(--eden-background);
+    color: var(--eden-text);
+    font: inherit;
+}
+
+.eden-deck-editor-search-input:focus {
+    outline: 2px solid var(--eden-accent);
+    outline-offset: 1px;
+}
+
+/* Sort buttons: light, outlined, filled in accent when active. */
+.eden-deck-editor-toolbar-button {
+    padding: 7px 12px;
+    border: 1px solid var(--eden-border-strong);
+    border-radius: 5px;
+    background: var(--eden-background);
+    color: var(--eden-text);
+    cursor: pointer;
+}
+
+.eden-deck-editor-toolbar-button:hover {
+    background: var(--eden-surface-hover);
+}
+
+.eden-deck-editor-toolbar-button-active,
+.eden-deck-editor-toolbar-button-active:hover {
+    border-color: var(--eden-accent);
+    background: var(--eden-accent);
+    color: var(--eden-accent-text);
+}
+
+/* Folder-style tabs on the left, standing on the bar's bottom edge. */
+.eden-deck-editor-tabs {
+    display: flex;
+    gap: 4px;
+    margin-right: 8px;
+}
+
+.eden-deck-editor-tab {
+    padding: 8px 18px;
+    border: 1px solid var(--eden-border);
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
+    background: var(--eden-surface-muted);
+    color: var(--eden-text);
+    opacity: 0.75;
+    cursor: pointer;
+}
+
+.eden-deck-editor-tab:hover {
+    background: var(--eden-surface-hover);
+    opacity: 1;
+}
+
+/* The selected tab takes the card list's colour and drops 1px over the bar's bottom border, so it joins the list below. */
+.eden-deck-editor-tab-active,
+.eden-deck-editor-tab-active:hover {
+    position: relative;
+    margin-bottom: -1px;
+    padding-bottom: 9px;
+    border-color: var(--eden-border-strong);
+    background: var(--eden-background);
+    opacity: 1;
+    cursor: default;
+}
+
+/* The id selector is needed to beat "#eden-card-game-deck-builder button { font: inherit }". */
+#eden-card-game-deck-builder .eden-deck-editor-tab-active {
+    font-weight: bold;
+}
+
+.eden-available-cards-empty {
+    grid-column: 1 / -1;
+    padding: 30px 0;
+    text-align: center;
     opacity: 0.6;
 }
 
@@ -359,9 +482,10 @@ html.eden-card-game-game-open {
     font-size: 20px;
 }
 
+/* Always 7 cards per row; the cards shrink or grow to fit the width. */
 .eden-available-card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 15px;
 }
 
@@ -408,11 +532,15 @@ html.eden-card-game-game-open {
     cursor: not-allowed;
 }
 
+/*
+Long names shrink to fit the line: the text area is 86.6cqw wide (100 minus the side padding),
+and a bold character is roughly 0.6 of the font size wide. Very long names stop at 5cqw and get "..." instead.
+*/
 .eden-card-game-card-name {
     flex: 0 0 auto;
     padding: 4.7cqw 6.7cqw 3.3cqw;
     text-align: center;
-    font-size: 9.3cqw;
+    font-size: max(5cqw, min(9.3cqw, calc(86.6cqw / (var(--eden-name-length, 1) * 0.6))));
     font-weight: bold;
     line-height: 1.1;
     white-space: nowrap;
@@ -430,8 +558,8 @@ html.eden-card-game-game-open {
     gap: 1.3cqw;
 }
 
-.eden-card-game-card-enter-fame,
-.eden-card-game-card-leave-fame {
+.eden-card-game-card-entry-fame,
+.eden-card-game-card-exit-fame {
     min-width: 14.7cqw;
     height: 13.3cqw;
     padding: 0 4cqw;
@@ -440,16 +568,30 @@ html.eden-card-game-game-open {
     justify-content: center;
     font-size: 7.3cqw;
     font-weight: bold;
-    color: #17130f;
+    color: #0f172a;
     border-radius: 0 3.3cqw 3.3cqw 0;
 }
 
-.eden-card-game-card-enter-fame {
-    background: var(--eden-enter-fame);
+.eden-card-game-card-entry-fame {
+    background: var(--eden-entry-fame);
 }
 
-.eden-card-game-card-leave-fame {
-    background: var(--eden-leave-fame);
+.eden-card-game-card-exit-fame {
+    background: var(--eden-exit-fame);
+}
+
+/* A Fame stat changed by effects: a green ring when raised, a red one when lowered. */
+.eden-card-game-card-stat-raised,
+.eden-card-game-card-stat-lowered {
+    box-shadow: inset 0 0 0 1.3cqw var(--eden-stat-change), 0 0 2.7cqw var(--eden-stat-change);
+}
+
+.eden-card-game-card-stat-raised {
+    --eden-stat-change: #22b573;
+}
+
+.eden-card-game-card-stat-lowered {
+    --eden-stat-change: #e0475a;
 }
 
 .eden-card-game-card-image-area {
@@ -478,7 +620,7 @@ html.eden-card-game-game-open {
 }
 
 .eden-card-game-card-no-image .eden-card-game-card-image-area {
-    background: #e7d8c2;
+    background: #d5deea;
 }
 
 .eden-card-game-card-text-overlay {
@@ -492,14 +634,14 @@ html.eden-card-game-game-open {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    background: rgba(246, 241, 232, 0.9);
+    background: rgba(238, 242, 247, 0.9);
     text-align: center;
 }
 
 .eden-card-game-card-groups {
     padding-bottom: 2.7cqw;
     margin-bottom: 2.7cqw;
-    border-bottom: 1px solid rgba(38, 59, 50, 0.2);
+    border-bottom: 1px solid rgba(30, 41, 59, 0.2);
     font-size: 6cqw;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -559,8 +701,19 @@ html.eden-card-game-game-open {
 }
 
 @media (max-width: 800px) {
+    /* Stacked layout: the deck sits below the cards and the whole page scrolls. */
+    .eden-deck-editor-screen {
+        height: auto;
+        min-height: 100vh;
+    }
+
     .eden-deck-editor-body {
         grid-template-columns: 1fr;
+    }
+
+    /* Too narrow for 7: fit as many cards as can be at least 150px wide. */
+    .eden-available-card-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     }
 
     .eden-current-deck-area {
@@ -626,6 +779,11 @@ html.eden-card-game-game-open {
     width: 100%;
     height: 100%;
     display: flex;
+    /* The image itself is set from the host game's Club Card background (card-game.js). */
+    background-color: var(--eden-background);
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
 }
 
 /*
@@ -690,9 +848,68 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
     top: 0;
 }
 
-.eden-game-hand-row-player .eden-card-game-card-clickable:hover {
-    transform: translateY(-22%);
-    z-index: 5;
+/* The copy of a hand card that follows the mouse while it's dragged. */
+.eden-game-drag-ghost {
+    position: fixed;
+    z-index: 20;
+    pointer-events: none;
+    transform: rotate(-3deg) scale(1.05);
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.45);
+    opacity: 0.92;
+}
+
+/* The arrow stretching from an ability to the mouse while it's dragged to a slot. */
+.eden-game-drag-arrow {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+    filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.45));
+}
+
+.eden-game-drag-arrow-line {
+    fill: none;
+    stroke: var(--eden-accent);
+    stroke-width: 7;
+    stroke-linecap: round;
+}
+
+.eden-game-drag-arrow marker path {
+    fill: var(--eden-accent);
+}
+
+/*
+The target under a dragged card or arrow gets a thick, glowing border that sticks out past the slot,
+so it stays visible around the dragged card covering the slot.
+*/
+#eden-card-game-game.eden-game-dragging .eden-game-board-slot-target:hover::after,
+#eden-card-game-game.eden-game-dragging .eden-game-board-row-target:hover::after {
+    inset: -7px;
+    border-width: 5px;
+    border-radius: 9px;
+    box-shadow: 0 0 18px 4px var(--eden-accent);
+}
+
+/* The dragged card's place in the hand stays visible, faded. */
+#eden-card-game-game.eden-game-dragging .eden-game-hand-row-player .eden-card-game-card.eden-game-hand-card-selected {
+    opacity: 0.35;
+    transform: none;
+}
+
+/* Can't be played now (e.g. a Video without enough Actresses). It still lifts on hover so it can be read. */
+.eden-game-hand-row-player .eden-card-game-card.eden-game-hand-card-unplayable {
+    filter: grayscale(0.6) brightness(0.8);
+    cursor: not-allowed;
+}
+
+/* Half of each card is below the screen edge; hovering lifts it fully into view, even outside your turn. */
+.eden-game-hand-row-player .eden-card-game-card:hover,
+.eden-game-hand-row-player .eden-card-game-card.eden-game-hand-card-selected:hover {
+    transform: translateY(-50%);
+    z-index: 7;
 }
 
 /* Stays raised and outlined while it waits for a slot. */
@@ -700,7 +917,7 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
     transform: translateY(-22%);
     z-index: 6;
     border-color: var(--eden-accent);
-    box-shadow: 0 0 0 3px var(--eden-accent), 0 8px 20px rgba(42, 31, 22, 0.35);
+    box-shadow: 0 0 0 3px var(--eden-accent), 0 8px 20px rgba(15, 23, 42, 0.35);
 }
 
 .eden-game-board-row {
@@ -726,7 +943,7 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
     justify-content: center;
     border: 1px dashed var(--eden-border-strong);
     border-radius: 5px;
-    background: var(--eden-surface-muted);
+    background: rgba(226, 232, 240, 0.7);
 }
 
 .eden-game-board-slot-filled {
@@ -764,15 +981,20 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
 
 .eden-game-board-slot-target:hover::after {
     animation: none;
-    background: rgba(128, 90, 53, 0.18);
+    background: rgba(47, 93, 158, 0.18);
     color: var(--eden-accent);
     content: "Play here";
 }
 
 .eden-game-board-slot-target.eden-game-board-slot-filled:hover::after {
-    background: rgba(42, 31, 22, 0.6);
+    background: rgba(15, 23, 42, 0.6);
     color: #ffffff;
     content: "Replace";
+}
+
+/* A valid target for a played card's cardSelection. */
+.eden-game-board-slot-target.eden-game-board-slot-select:hover::after {
+    content: "Select";
 }
 
 /* A selected event card: the whole board is one target. */
@@ -799,7 +1021,7 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
 
 .eden-game-board-row-target:hover::after {
     animation: none;
-    background: rgba(42, 31, 22, 0.6);
+    background: rgba(15, 23, 42, 0.6);
     color: #ffffff;
     content: "Play event";
 }
@@ -817,26 +1039,36 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
 }
 
 /* One compact line between the boards. */
+/*
+The board background can be any image, so the strip carries its own mostly opaque, blurred backing
+to keep the text readable on light and dark backgrounds alike.
+*/
 .eden-game-center-info {
     grid-column: 1 / -1;
     grid-row: 3;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 18px;
-    padding: 3px 0;
-    border-top: 1px solid var(--eden-border);
-    border-bottom: 1px solid var(--eden-border);
-    font-size: 13px;
+    gap: 22px;
+    padding: 5px 12px;
+    border: 1px solid var(--eden-border-strong);
+    border-radius: 6px;
+    background: rgba(249, 251, 253, 0.78);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    color: var(--eden-text);
+    font-size: 14px;
+    font-weight: bold;
 }
 
 .eden-game-turn-label {
-    font-weight: bold;
     color: var(--eden-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .eden-game-deck-counts {
-    opacity: 0.65;
+    opacity: 0.8;
 }
 
 .eden-game-deck-counts:empty {
@@ -860,7 +1092,7 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
     padding: calc(var(--eden-card-width) * 0.1);
     border: 1px solid var(--eden-border);
     border-radius: 8px;
-    background: var(--eden-surface);
+    background: rgba(249, 251, 253, 0.8);
 }
 
 .eden-game-player-panel-opponent {
@@ -889,8 +1121,6 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
-    background: var(--eden-surface-muted);
 }
 
 .eden-game-player-fame-value {
@@ -902,9 +1132,10 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
 
 .eden-game-player-fame-label {
     font-size: 6cqw;
+    font-weight: bold;
     text-transform: uppercase;
     letter-spacing: 1px;
-    opacity: 0.65;
+    opacity: 0.8;
 }
 
 /* Square, sized from the card width. Holds the button so right-clicks still work while it is disabled. */
@@ -1002,13 +1233,124 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
     opacity: 0.6;
 }
 
+/* One block per turn. The coloured right edge shows whose turn it was. */
+.eden-game-chat-turn {
+    margin-bottom: 10px;
+    border: 1px solid var(--eden-border);
+    border-right: 4px solid var(--eden-border-strong);
+    border-radius: 6px;
+    background: var(--eden-background);
+    overflow: hidden;
+}
+
+.eden-game-chat-turn-player {
+    border-right-color: var(--eden-accent);
+}
+
+.eden-game-chat-turn-opponent {
+    border-right-color: var(--eden-exit-fame);
+}
+
+.eden-game-chat-turn-title {
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--eden-border);
+    background: var(--eden-surface-muted);
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Actions within a turn, split by a light line. */
+.eden-game-chat-action {
+    padding: 6px 10px;
+}
+
+.eden-game-chat-action + .eden-game-chat-action {
+    border-top: 1px solid rgba(138, 155, 179, 0.25);
+}
+
+.eden-game-chat-message {
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+/* Chat messages stand out from the game's own messages. */
+.eden-game-chat-action-chat {
+    background: rgba(47, 93, 158, 0.08);
+}
+
+.eden-game-chat-sender {
+    font-weight: bold;
+    color: var(--eden-accent);
+}
+
+.eden-game-chat-message {
+    overflow-wrap: anywhere;
+}
+
+/* The id selector keeps the host page's input styles from winning. */
+#eden-card-game-game .eden-game-chat-input {
+    grid-column: 1 / -1;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--eden-border-strong);
+    border-radius: 5px;
+    background: var(--eden-background);
+    color: var(--eden-text);
+    font: inherit;
+    font-size: 13px;
+}
+
+#eden-card-game-game .eden-game-chat-input:focus {
+    outline: 2px solid var(--eden-accent);
+    outline-offset: -1px;
+}
+
 .eden-game-action-buttons {
     flex-shrink: 0;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: auto 1fr;
     gap: 8px;
     padding: 15px;
     border-top: 1px solid var(--eden-border);
+}
+
+/* The draw deck sits on the left, beside the Pass, Backstage and Exit buttons. */
+.eden-game-draw-slot {
+    grid-row: span 3;
+    align-self: center;
+    width: 76px;
+    aspect-ratio: 1 / 2;
+}
+
+/* The id selector is needed to beat "#eden-card-game-game button { font: inherit }". */
+#eden-card-game-game .eden-game-draw-button {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 1px solid var(--eden-border-strong);
+    border-radius: 6px;
+    background-size: cover;
+    background-position: center;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+    color: #ffffff;
+    font-size: 30px;
+    font-weight: bold;
+    text-shadow: 0 0 4px #000000, 0 2px 6px #000000;
+    cursor: pointer;
+    transition: transform 0.12s ease;
+}
+
+/* Hand full: drawing would discard the card. */
+#eden-card-game-game .eden-game-draw-button-full {
+    border: 3px solid #d0392b;
+    box-shadow: 0 0 10px rgba(208, 57, 43, 0.8);
+}
+
+#eden-card-game-game .eden-game-draw-button:hover:not(:disabled) {
+    transform: translateY(-3px);
 }
 
 .eden-game-action-button:disabled {
@@ -1017,13 +1359,61 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
 }
 
 .eden-game-exit-button {
-    grid-column: 1 / -1;
-    background: var(--eden-leave-fame);
+    background: var(--eden-danger);
     border-color: var(--eden-border-strong);
 }
 
 .eden-game-exit-button:hover {
-    background: #c96f54;
+    background: var(--eden-danger-hover);
+}
+
+/* Above the board and the backstage window. */
+.eden-game-over-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: var(--eden-preview-scrim);
+}
+
+.eden-game-over-window {
+    width: min(420px, 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 30px 26px 24px;
+    border: 1px solid var(--eden-border-strong);
+    border-top: 6px solid var(--eden-accent);
+    border-radius: 10px;
+    background: var(--eden-surface);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    text-align: center;
+}
+
+.eden-game-over-loss {
+    border-top-color: var(--eden-danger);
+}
+
+.eden-game-over-title {
+    font-size: 34px;
+    font-weight: bold;
+    color: var(--eden-accent);
+}
+
+.eden-game-over-loss .eden-game-over-title {
+    color: #c2414f;
+}
+
+.eden-game-over-message {
+    font-size: 17px;
+}
+
+.eden-game-over-button {
+    margin-top: 8px;
 }
 
 .eden-game-resting-room-overlay {
@@ -1068,6 +1458,17 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
     width: 120px;
 }
 
+/* Picking a card for an effect like Re-Run: only the valid cards are shown, outlined. */
+.eden-game-resting-room-cards .eden-game-resting-room-pick {
+    cursor: pointer;
+    box-shadow: 0 0 0 3px var(--eden-accent);
+    transition: transform 0.12s ease;
+}
+
+.eden-game-resting-room-cards .eden-game-resting-room-pick:hover {
+    transform: translateY(-4px);
+}
+
 .eden-game-resting-room-empty {
     padding: 30px 0;
     opacity: 0.6;
@@ -1084,3 +1485,207 @@ The hand rows touch the screen edges, so the half-height rows show half a card.
     }
 }
 
+
+/* Online lobby, opened from the chat room menu's Eden button (eden-online.js). Below the game window (999999). */
+#eden-online-lobby,
+#eden-online-lobby * {
+    box-sizing: border-box;
+}
+
+.eden-online-lobby-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    background: var(--eden-preview-scrim);
+    font-family: Arial, sans-serif;
+    color: var(--eden-text);
+}
+
+.eden-online-lobby {
+    width: min(520px, 100%);
+    max-height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 22px;
+    border: 1px solid var(--eden-border-strong);
+    border-radius: 10px;
+    background: var(--eden-surface);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+
+#eden-online-lobby button,
+#eden-online-lobby select {
+    font: inherit;
+}
+
+.eden-online-lobby-title {
+    margin: 0;
+    text-align: center;
+    color: var(--eden-accent);
+}
+
+.eden-online-lobby-status {
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--eden-surface-muted);
+    font-weight: bold;
+    text-align: center;
+}
+
+.eden-online-lobby-seat,
+.eden-online-lobby-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.eden-online-lobby-seat {
+    padding: 8px 12px;
+    border: 1px solid var(--eden-border);
+    border-radius: 6px;
+}
+
+.eden-online-lobby-seat-label {
+    width: 72px;
+    font-weight: bold;
+}
+
+.eden-online-lobby-seat-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.eden-online-lobby-select {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid var(--eden-border-strong);
+    border-radius: 5px;
+    background: var(--eden-background);
+    color: var(--eden-text);
+}
+
+.eden-online-lobby-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.eden-online-lobby-note {
+    flex: 1;
+    font-size: 13px;
+    opacity: 0.7;
+}
+
+#eden-online-lobby .eden-deck-builder-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* The shared hover tooltip (card-renderer.js). Above every addon window, including the card preview. */
+#eden-tooltip {
+    position: fixed;
+    z-index: 2000001;
+    display: none;
+    max-width: 260px;
+    padding: 8px 11px;
+    border: 1px solid var(--eden-border-strong);
+    border-radius: 6px;
+    background: var(--eden-surface);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    color: var(--eden-text);
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.35;
+    pointer-events: none;
+}
+
+#eden-tooltip.eden-tooltip-visible {
+    display: block;
+}
+
+.eden-tooltip-title {
+    margin-bottom: 3px;
+    font-weight: bold;
+    color: var(--eden-accent);
+}
+
+/* Keywords in card effects and ability descriptions (EdenKeywords in cards.js). */
+.eden-keyword {
+    font-weight: bold;
+}
+
+/*
+A big preview with its keyword explanations on the left. Clicking anywhere still closes the whole preview.
+The equal side columns keep the preview in the centre of the screen, with the blocks right next to it.
+*/
+.eden-preview-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: start;
+    gap: 16px;
+    max-height: 100%;
+}
+
+.eden-keyword-blocks {
+    width: 240px;
+    max-width: 100%;
+    justify-self: end;
+    max-height: min(80vh, 640px);
+    flex-shrink: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.eden-keyword-block {
+    padding: 10px 12px;
+    border: 1px solid var(--eden-border-strong);
+    border-radius: 8px;
+    background: var(--eden-surface);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    color: var(--eden-text);
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.eden-keyword-block-title {
+    margin-bottom: 4px;
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--eden-accent);
+}
+
+/* Narrow windows: the explanations go above the preview instead of beside it. */
+@media (max-width: 700px) {
+    .eden-preview-row {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .eden-keyword-blocks {
+        width: min(440px, 100%);
+        max-height: none;
+    }
+}
+
+/* In the big preview, hovering a Fame badge explains the stat (statTooltips in card-renderer.js). */
+.eden-card-preview-overlay .eden-card-game-card-entry-fame,
+.eden-card-preview-overlay .eden-card-game-card-exit-fame {
+    cursor: help;
+}

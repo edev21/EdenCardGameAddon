@@ -7,21 +7,21 @@ let EdenCardPreviewOverlay = null;
 let EdenOpenButtonElement = null;
 let EdenCurrentDeck = null;
 let EdenCurrentScreen = "deck-list";
+let EdenDeckSearchText = "";
+// Card list sort: key is "entryFame", "exitFame" or null (database order); direction is "desc" or "asc".
+let EdenDeckSort = { key: null, direction: "desc" };
+// Which cards the editor lists: "class" (the deck's class cards) or "general".
+let EdenDeckTab = "class";
 
+// The AI's deck in local games.
 const EdenDefaultDeck = {
   "id": "Default Deck",
   "name": "Default Deck",
-  "class": "shibari",
-  "cards": [ 1, 1, 2, 2, 3, 3, 8, 1, 2, 2, 3, 3, 8, 1, 2, 2, 3, 3, 8, 1, 2, 2, 3, 3, 8 ]
+  "class": "college",
+  "cards": [ 1000, 1000, 1001, 1001, 1002, 1002, 1003, 1003, 1004, 1004, 1005, 1005, 1006, 1006, 1007, 1007, 1008, 1008, 1009, 1009, 1011, 1011, 1012, 1012, 1013, 1013, 7, 8, 10, 12 ]
 }
 
-/*
-    Re-finds (or (re)creates) the container and its inner content wrapper.
-
-    This is self-healing on purpose: if the host page re-renders and
-    replaces/removes #eden-card-game-deck-builder, calling open()/close() again
-    will not silently operate on a detached element or throw.
-*/
+// Finds or recreates the container and content wrapper, in case the host page removed them.
 function EdenEnsureDeckBuilderContainer() {
     let container = document.getElementById("eden-card-game-deck-builder");
 
@@ -57,10 +57,7 @@ function EdenEnsureDeckBuilderContainer() {
     return EdenDeckBuilderContainer;
 }
 
-/*
-    The preview lives on the page body, not inside the deck builder, so the
-    game screen can use it too.
-*/
+// The preview overlay lives on body (not in the deck builder) so the game screen uses it too.
 function EdenEnsureCardPreviewOverlay() {
     let overlay = document.getElementById("eden-card-preview-overlay");
 
@@ -80,12 +77,9 @@ function EdenEnsureCardPreviewOverlay() {
     return EdenCardPreviewOverlay;
 }
 
-/*
-    Shown on right-click. Right-clicking again, or clicking anywhere,
-    closes it (see the overlay's own listeners above).
-*/
+// Right-click preview with keyword blocks. Any click on the overlay closes it.
 function EdenShowCardPreview(card) {
-    EdenShowPreviewElement(EdenCardGameRenderCard(card));
+    EdenShowPreviewElement(EdenCreatePreviewWithKeywords(EdenCardGameRenderCard(card, { statTooltips: true }), card.effect));
 }
 
 // Shows any element (a card, an ability) in the preview overlay.
@@ -103,11 +97,7 @@ function EdenHideCardPreview() {
     EdenCardPreviewOverlay.innerHTML = "";
 }
 
-/*
-    Re-finds (or creates) the standalone bottom-left button used to open
-    the deck builder. Lives outside #eden-card-game-deck-builder so it stays
-    visible while the deck builder itself is closed/hidden.
-*/
+// Floating "Open Deck Builder" button, outside the builder container so it shows while it's closed. Hidden in the host game by CSS.
 function EdenEnsureOpenButton() {
     let button = document.getElementById("eden-open-deck-builder-button");
 
@@ -124,10 +114,6 @@ function EdenEnsureOpenButton() {
     return EdenOpenButtonElement;
 }
 
-/*
-    Call this whenever you need to show/hide the open button yourself,
-    e.g. while your own game UI is covering the screen.
-*/
 function EdenShowOpenButton() {
     EdenEnsureOpenButton().classList.remove("eden-open-deck-builder-button-hidden");
 }
@@ -142,12 +128,7 @@ function EdenInitializeDeckBuilder() {
     EdenShowDeckList();
 }
 
-/*
-    This is the function you will call from your own button.
-
-    Example from your existing game:
-        EdenOpenCardGameDeckBuilder();
-*/
+// Entry point, used by the room's Build button and the dealer's dialog.
 function EdenOpenCardGameDeckBuilder() {
     EdenEnsureDeckBuilderContainer();
 
@@ -158,12 +139,7 @@ function EdenOpenCardGameDeckBuilder() {
     EdenShowDeckList();
 }
 
-/*
-    Use this from your own Back/Close button if you want the
-    deck builder to disappear.
-
-    You can replace this later with the game's own screen system.
-*/
+// Closing drops any unsaved edits.
 function EdenCloseCardGameDeckBuilder() {
     document.documentElement.classList.remove("eden-card-game-deck-builder-open");
 
@@ -184,6 +160,9 @@ function EdenClearBuilder() {
 function EdenShowDeckList() {
     EdenCurrentScreen = "deck-list";
     EdenCurrentDeck = null;
+    EdenDeckSearchText = "";
+    EdenDeckSort = { key: null, direction: "desc" };
+    EdenDeckTab = "class";
 
     EdenClearBuilder();
 
@@ -312,15 +291,22 @@ function EdenShowClassSelect() {
     EdenDeckBuilderContentElement.appendChild(screen);
 }
 
-function EdenShowDeckEditor() {
+/*
+EdenCurrentDeck is a separate copy (parsed from storage); changes are only stored on Save, so Cancel/close discards them.
+keepScroll keeps both lists' scroll positions (e.g. after adding or removing a card).
+*/
+function EdenShowDeckEditor(keepScroll = false) {
     EdenCurrentScreen = "deck-editor";
-
-    EdenCurrentDeck = EdenGetDeckById(EdenCurrentDeck.id);
 
     if (!EdenCurrentDeck) {
         EdenShowDeckList();
         return;
     }
+
+    const oldCardArea = EdenDeckBuilderContentElement.querySelector(".eden-available-cards-area");
+    const oldDeckArea = EdenDeckBuilderContentElement.querySelector(".eden-current-deck-area");
+    const cardScroll = keepScroll ? oldCardArea?.scrollTop ?? 0 : 0;
+    const deckScroll = keepScroll ? oldDeckArea?.scrollTop ?? 0 : 0;
 
     EdenClearBuilder();
 
@@ -339,9 +325,13 @@ function EdenShowDeckEditor() {
     editorBody.appendChild(deckArea);
 
     screen.appendChild(topBar);
+    screen.appendChild(EdenCreateDeckSearchBar(cardArea));
     screen.appendChild(editorBody);
 
     EdenDeckBuilderContentElement.appendChild(screen);
+    // Set after the lists are on the page, so they have their full height.
+    cardArea.scrollTop = cardScroll;
+    deckArea.scrollTop = deckScroll;
 }
 
 function EdenCreateDeckEditorTopBar() {
@@ -349,16 +339,25 @@ function EdenCreateDeckEditorTopBar() {
 
     const leftSide = EdenCreateElement("div", "eden-deck-editor-top-left");
 
-    const backButton = EdenCreateElement(
+    const saveButton = EdenCreateElement(
         "button",
         "eden-deck-builder-button eden-deck-builder-small-button",
-        "Back"
+        "Save"
     );
 
-    backButton.addEventListener("click", () => {
+    saveButton.addEventListener("click", () => {
         EdenUpdateDeck(EdenCurrentDeck);
         EdenShowDeckList();
     });
+
+    // Just drops the edited copy; storage was never changed.
+    const cancelButton = EdenCreateElement(
+        "button",
+        "eden-deck-builder-button eden-deck-builder-small-button",
+        "Cancel"
+    );
+
+    cancelButton.addEventListener("click", EdenShowDeckList);
 
     const renameButton = EdenCreateElement(
         "button",
@@ -368,8 +367,22 @@ function EdenCreateDeckEditorTopBar() {
 
     renameButton.addEventListener("click", EdenRenameCurrentDeck);
 
-    leftSide.appendChild(backButton);
+    const deleteButton = EdenCreateElement(
+        "button",
+        "eden-deck-builder-button eden-deck-builder-small-button eden-deck-builder-danger-button",
+        "Delete Deck"
+    );
+
+    deleteButton.addEventListener("click", () => {
+        if (!window.confirm(`Delete "${EdenCurrentDeck.name}"? This cannot be undone.`)) return;
+        EdenDeleteDeck(EdenCurrentDeck.id);
+        EdenShowDeckList();
+    });
+
+    leftSide.appendChild(saveButton);
+    leftSide.appendChild(cancelButton);
     leftSide.appendChild(renameButton);
+    leftSide.appendChild(deleteButton);
 
     const titleArea = EdenCreateElement("div", "eden-deck-editor-title-area");
 
@@ -406,6 +419,81 @@ function EdenCreateDeckEditorTopBar() {
     return topBar;
 }
 
+/*
+Bar above the card list: class/general tabs, search box and sort buttons.
+Typing only redraws the card list (so the box keeps focus); the buttons redraw the whole editor.
+*/
+function EdenCreateDeckSearchBar(cardArea) {
+    const searchBar = EdenCreateElement("div", "eden-deck-editor-search-bar");
+    const input = EdenCreateElement("input", "eden-deck-editor-search-input");
+    input.type = "search";
+    input.placeholder = "Search name, group or effect...";
+    input.value = EdenDeckSearchText;
+
+    input.addEventListener("input", () => {
+        EdenDeckSearchText = input.value;
+        cardArea.innerHTML = "";
+        EdenRenderAvailableCards(cardArea);
+    });
+
+    const tabs = EdenCreateElement("div", "eden-deck-editor-tabs");
+    tabs.appendChild(EdenCreateDeckTab("class", EdenGetClassName(EdenCurrentDeck.class)));
+    tabs.appendChild(EdenCreateDeckTab("general", "General"));
+
+    searchBar.appendChild(tabs);
+    searchBar.appendChild(input);
+    searchBar.appendChild(EdenCreateDeckSortButton("entryFame", "Entry Fame"));
+    searchBar.appendChild(EdenCreateDeckSortButton("exitFame", "Exit Fame"));
+
+    return searchBar;
+}
+
+// Clicks cycle: high to low, low to high, normal order.
+function EdenCreateDeckSortButton(key, label) {
+    const active = EdenDeckSort.key === key;
+    const arrow = !active ? "" : EdenDeckSort.direction === "desc" ? " ▼" : " ▲";
+    const button = EdenCreateElement("button", "eden-deck-editor-toolbar-button", label + arrow);
+    if (active) button.classList.add("eden-deck-editor-toolbar-button-active");
+    button.title = !active ? "Sort high to low" : EdenDeckSort.direction === "desc" ? "Sort low to high" : "Reset sorting";
+
+    button.addEventListener("click", () => {
+        if (!active) EdenDeckSort = { key, direction: "desc" };
+        else if (EdenDeckSort.direction === "desc") EdenDeckSort = { key, direction: "asc" };
+        else EdenDeckSort = { key: null, direction: "desc" };
+        EdenShowDeckEditor();
+    });
+    return button;
+}
+
+function EdenCreateDeckTab(tab, label) {
+    const button = EdenCreateElement("button", "eden-deck-editor-tab", label);
+    if (EdenDeckTab === tab) button.classList.add("eden-deck-editor-tab-active");
+    button.addEventListener("click", () => {
+        EdenDeckTab = tab;
+        EdenShowDeckEditor();
+    });
+    return button;
+}
+
+// Editor cards: current tab, filtered by search, sorted (a missing stat counts as 0).
+function EdenGetDeckEditorCards() {
+    const cards = EdenGetCardsForClass(EdenCurrentDeck.class)
+        .filter(card => (EdenDeckTab === "general") === (card.class === "general"))
+        .filter(card => EdenCardMatchesSearch(card, EdenDeckSearchText));
+
+    const key = EdenDeckSort.key;
+    if (!key) return cards;
+    const direction = EdenDeckSort.direction === "desc" ? -1 : 1;
+    return cards.sort((a, b) => ((a[key] ?? 0) - (b[key] ?? 0)) * direction);
+}
+
+// Case-insensitive match on name, groups or effect.
+function EdenCardMatchesSearch(card, searchText) {
+    const search = searchText.trim().toLowerCase();
+    if (search === "") return true;
+    return [card.name, ...(card.groups ?? []), card.effect ?? ""].some(text => text.toLowerCase().includes(search));
+}
+
 function EdenRenderAvailableCards(container) {
     const heading = EdenCreateElement(
         "div",
@@ -415,7 +503,9 @@ function EdenRenderAvailableCards(container) {
 
     const cardGrid = EdenCreateElement("div", "eden-available-card-grid");
 
-    const availableCards = EdenGetCardsForClass(EdenCurrentDeck.class);
+    const availableCards = EdenGetDeckEditorCards();
+
+    if (availableCards.length === 0) cardGrid.appendChild(EdenCreateElement("div", "eden-available-cards-empty", EdenDeckSearchText.trim() ? "No cards match your search." : "No cards here."));
 
     for (const card of availableCards) {
         const cardElement = EdenCardGameRenderCard(card, {
@@ -499,8 +589,7 @@ function EdenAddCardToDeck(cardId) {
     if (EdenGetCardCount(EdenCurrentDeck, cardId) >= EdenMaxCopies) return;
 
     EdenCurrentDeck.cards.push(cardId);
-    EdenUpdateDeck(EdenCurrentDeck);
-    EdenShowDeckEditor();
+    EdenShowDeckEditor(true);
 }
 
 function EdenRemoveCardFromDeck(cardId) {
@@ -509,8 +598,7 @@ function EdenRemoveCardFromDeck(cardId) {
     if (cardIndex === -1) return;
 
     EdenCurrentDeck.cards.splice(cardIndex, 1);
-    EdenUpdateDeck(EdenCurrentDeck);
-    EdenShowDeckEditor();
+    EdenShowDeckEditor(true);
 }
 
 function EdenRenameCurrentDeck() {
@@ -526,8 +614,7 @@ function EdenRenameCurrentDeck() {
     if (trimmedName === "") return;
 
     EdenCurrentDeck.name = trimmedName;
-    EdenUpdateDeck(EdenCurrentDeck);
-    EdenShowDeckEditor();
+    EdenShowDeckEditor(true);
 }
 
 function EdenGetCardCount(deck, cardId) {

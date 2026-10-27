@@ -3,7 +3,7 @@
 
     window.EdenCardGameDeckBuilderAddonLoaded = true;
 
-    // Get the folder where addon.js was loaded from
+    // Entry point: everything loads relative to addon.js's own URL.
     /** @type {HTMLScriptElement | null} */
     const currentScript = document.currentScript instanceof HTMLScriptElement
         ? document.currentScript
@@ -16,7 +16,6 @@
 
     const baseUrl = new URL("../", currentScript.src).href;
 
-    // Create the deck builder container
     let container = document.getElementById("eden-card-game-deck-builder");
 
     if (!container) {
@@ -25,13 +24,12 @@
         document.body.appendChild(container);
     }
 
-    // Load CSS
     const style = document.createElement("link");
     style.rel = "stylesheet";
     style.href = baseUrl + "css/deck-builder.css";
     document.head.appendChild(style);
 
-    // Load scripts one at a time so each dependency is ready before the next.
+    // Loads scripts in order, one at a time; later files depend on earlier ones. New script files go in the list below.
     /**
     * @param {string[]} files
     * @param {number} index
@@ -50,5 +48,5 @@
         document.head.appendChild(script);
     }
 
-    EdenLoadScripts(["cards.js", "deck-storage.js", "card-renderer.js", "deck-builder.js", "card-game-state.js", "card-game.js"]);
+    EdenLoadScripts(["cards.js", "deck-storage.js", "card-renderer.js", "deck-builder.js", "card-game-state.js", "card-game.js", "eden-room.js", "eden-online.js"]);
 })();

@@ -1,34 +1,39 @@
-/*
-Card game UI.
+// Card game UI: deck selection, board rendering and input. State and rules live in card-game-state.js.
 
-This file is responsible only for:
-- Creating and displaying the game UI
-- Showing the deck selection screen
-- Rendering the current game state
-- Handling UI buttons
-
-Game state and game rules are handled by card-game-state.js.
-*/
-
-// The addon's root folder, used to load images from assets/.
-const EdenAddonBaseUrl = document.currentScript instanceof HTMLScriptElement ? new URL("../", document.currentScript.src).href : "";
+// The addon's own assets folder, resolved from this script's URL.
+const EdenAddonAssets = document.currentScript instanceof HTMLScriptElement ? new URL("../assets/", document.currentScript.src).href : "assets/";
 
 let EdenGameContainer = null;
 let EdenGameContentElement = null;
 let EdenGameOpenButtonElement = null;
 
-// Position in the player's hand of the card waiting for a slot, or null.
+// Hand index of the selected card waiting for a board slot, or null.
 let EdenSelectedHandIndex = null;
 
-// Whether the player's class ability is waiting for a board slot.
+// Whether the class ability is waiting for a board slot.
 let EdenAbilitySelecting = false;
 
-// Whether the player's resting room window is open.
+// Whether the Backstage window is open.
 let EdenRestingRoomOpen = false;
 
-/*
-Finds or creates the main game container.
-*/
+// Chat box text, kept across board redraws.
+let EdenGameChatDraft = "";
+const EdenGameChatMaxLength = 300;
+
+// Card definition merged with this copy's modified stats, for display.
+function EdenGetCardView(instance) {
+    const card = EdenGetCard(instance);
+    if (!card || (!instance.entryFameBonus && !instance.exitFameBonus)) return card;
+    return {
+        ...card,
+        entryFame: card.entryFame === undefined && !instance.entryFameBonus ? undefined : EdenGetEntryFame(instance),
+        exitFame: card.exitFame === undefined && !instance.exitFameBonus ? undefined : EdenGetExitFame(instance),
+        // Lets the renderer mark changed stats.
+        entryFameBonus: instance.entryFameBonus,
+        exitFameBonus: instance.exitFameBonus
+    };
+}
+
 function EdenEnsureGameContainer() {
     let container = document.getElementById("eden-card-game-game");
 
@@ -49,16 +54,11 @@ function EdenEnsureGameContainer() {
     return EdenGameContainer;
 }
 
-/*
-Removes everything currently displayed inside the game.
-*/
 function EdenClearGameScreen() {
     EdenGameContentElement.innerHTML = "";
 }
 
-/*
-Finds or creates the standalone "Open Game" button.
-*/
+// Floating "Open Game" button, used outside the host game (hidden inside it by CSS).
 function EdenEnsureGameOpenButton() {
     let button = document.getElementById("eden-open-game-button");
 
@@ -82,9 +82,6 @@ function EdenHideGameOpenButton() {
     EdenEnsureGameOpenButton().classList.add("eden-open-game-button-hidden");
 }
 
-/*
-Initializes the game UI.
-*/
 function EdenInitializeGame() {
     EdenEnsureGameContainer();
     EdenShowGameOpenButton();
@@ -97,10 +94,7 @@ function EdenInitializeGame() {
     });
 }
 
-/*
-Opens the game UI.
-The game state itself is handled by card-game-state.js.
-*/
+// Shows the board if a game exists, otherwise deck selection.
 function EdenOpenCardGame() {
     EdenEnsureGameContainer();
 
@@ -116,24 +110,45 @@ function EdenOpenCardGame() {
 }
 
 /*
-Closes the game UI.
-The game state is also reset so opening the game again starts
-from deck selection.
+Hides the game. Local and finished games are discarded; a running online game keeps going
+and can be reopened from the chat room's Eden menu.
 */
 function EdenCloseCardGame() {
     document.documentElement.classList.remove("eden-card-game-game-open");
     EdenShowGameOpenButton();
-    EdenGameState = null;
     EdenSelectedHandIndex = null;
     EdenAbilitySelecting = false;
     EdenRestingRoomOpen = false;
+    if (!EdenGameState?.online || EdenGameState.gameOver) {
+        if (EdenGameState?.online) EdenOnlineClearGame();
+        EdenGameState = null;
+    }
     if (!EdenGameContainer) return;
     EdenGameContainer.classList.remove("eden-card-game-game-visible");
 }
 
-/*
-Displays the deck selection screen.
-*/
+function EdenIsGameOpen() {
+    return EdenGameContainer?.classList.contains("eden-card-game-game-visible") ?? false;
+}
+
+// All local input goes through here: applies the move (EdenApplyMove) and, online, broadcasts it.
+function EdenSubmitMove(move) {
+    if (!EdenApplyMove(move)) return false;
+    if (EdenGameState.online) EdenOnlineSendMove(move);
+    return true;
+}
+
+// Whether this computer can act now (false for spectators and on the other player's turn).
+function EdenIsLocalTurn() {
+    const gameState = EdenGameState;
+    return !!gameState && !gameState.gameOver && gameState[gameState.currentTurn].control === "local";
+}
+
+// Name shown on a player's panel (for the AI, the dealer NPC's name).
+function EdenGetPanelName(ECPlayer) {
+    return ECPlayer.name;
+}
+
 function EdenShowGameDeckSelect() {
     EdenClearGameScreen();
 
@@ -147,8 +162,10 @@ function EdenShowGameDeckSelect() {
     const deckList = EdenCreateElement("div", "eden-deck-list");
 
     const decks = EdenGetDecks();
+    const waitingText = EdenOnlineGetDeckWaitingText();
 
-    if (decks.length === 0) {
+    if (waitingText) deckList.appendChild(EdenCreateElement("div", "eden-deck-list-empty", waitingText));
+    else if (decks.length === 0) {
         deckList.appendChild(
             EdenCreateElement(
                 "div",
@@ -165,9 +182,6 @@ function EdenShowGameDeckSelect() {
     EdenGameContentElement.appendChild(screen);
 }
 
-/*
-Creates one deck-selection item.
-*/
 function EdenCreateGameDeckSelectItem(deck) {
     const item = EdenCreateElement("button", "eden-deck-list-item");
 
@@ -188,30 +202,31 @@ function EdenCreateGameDeckSelectItem(deck) {
     item.appendChild(name);
     item.appendChild(information);
     item.addEventListener("click", () => {
-        EdenStartGame(deck);
+        if (EdenOnlineIsPickingDeck()) EdenOnlinePickDeck(deck);
+        else EdenStartGame(deck);
     });
     return item;
 }
 
-/*
-Starts a game using the selected deck.
-The actual creation of the game state happens in
-card-game-state.js.
-*/
+// Starts a local game against the AI.
 function EdenStartGame(deck) {
     EdenSelectedHandIndex = null;
     EdenAbilitySelecting = false;
     EdenRestingRoomOpen = false;
-    EdenCreateGameState(deck);
-    EdenPlayerDrawCard(EdenGameState.player, 5);
-    EdenPlayerDrawCard(EdenGameState.opponent, 5);
+    EdenCreateLocalGame(deck);
     EdenShowGameBoard();
-    EdenTurnStart(EdenGameState.currentTurn);
 }
 
-/*
-Renders the entire game board using the current game state.
-*/
+const EdenGameBackgroundFolder = "Backgrounds/";
+
+// The player's Club Card background from the host game, or its default board.
+function EdenGetGameBackgroundUrl() {
+    // Player only exists inside the host game.
+    const background = typeof Player !== "undefined" && Player.Game?.ClubCard?.Background ? Player.Game.ClubCard.Background : "ClubCardPlayBoard1";
+    return `${EdenGameBackgroundFolder}${background}.jpg`;
+}
+
+// Redraws the whole screen from EdenGameState. Called after every state change.
 function EdenShowGameBoard() {
     const gameState = EdenGameState;
     if (!gameState) {
@@ -219,9 +234,12 @@ function EdenShowGameBoard() {
         return;
     }
 
+    // Redraws happen on every move (including the other player's), so restore the chat box focus.
+    const chatFocused = !!document.activeElement?.classList.contains("eden-game-chat-input");
     EdenClearGameScreen();
 
     const screen = EdenCreateElement("div", "eden-game-screen");
+    screen.style.backgroundImage = `url("${EdenGetGameBackgroundUrl()}")`;
     const field = EdenCreateElement("div", "eden-game-field");
 
     field.appendChild(EdenCreateGamePlayerPanel("opponent"));
@@ -234,16 +252,28 @@ function EdenShowGameBoard() {
 
     screen.appendChild(field);
     screen.appendChild(EdenCreateGameChatPanel());
-    if (EdenRestingRoomOpen) screen.appendChild(EdenCreateRestingRoomWindow());
+    if (EdenRestingRoomOpen || EdenIsPickingBackstage()) screen.appendChild(EdenCreateRestingRoomWindow());
+    if (gameState.gameOver) screen.appendChild(EdenCreateGameOverWindow());
 
     EdenGameContentElement.appendChild(screen);
+
+    const chatInput = screen.querySelector(".eden-game-chat-input");
+    if (chatFocused && chatInput instanceof HTMLInputElement) {
+        chatInput.focus();
+        chatInput.setSelectionRange(chatInput.value.length, chatInput.value.length);
+    }
 }
 
-/*
-Creates a player's hand.
-This function only displays the state.
-It does not modify the state.
-*/
+// Logs a chat message from this computer and, online, broadcasts it.
+function EdenSendGameChat(text) {
+    text = text.trim();
+    if (!text || !EdenGameState) return;
+    EdenGameChatDraft = "";
+    EdenAddGameChat("You", text);
+    if (EdenGameState.online) EdenOnlineSendChat(text);
+    EdenShowGameBoard();
+}
+
 function EdenCreateGameHandRow(side) {
     const gameState = EdenGameState;
     const row = EdenCreateElement(
@@ -253,26 +283,38 @@ function EdenCreateGameHandRow(side) {
 
     let index = 0;
 
+    // The opponent's hand is face down, except for spectators, who see both hands.
+    const faceUp = side === "player" || gameState.localSeat === null;
+    const interactive = gameState[side].control === "local";
+
     for (let handIndex = 0; handIndex < gameState[side].hand.length; handIndex++) {
-        const cardId = gameState[side].hand[handIndex];
-        const card = EdenGetCardById(cardId);
+        const card = EdenGetCardView(gameState[side].hand[handIndex]);
         if (!card) continue;
 
-        // The opponent's hand is face down.
-        const cardElement = side === "player"
-            ? EdenCardGameRenderCard(card, { clickable: true })
+        const cardElement = faceUp
+            ? EdenCardGameRenderCard(card, { clickable: interactive })
             : EdenCardGameRenderSleeve();
 
-        // The CSS fans the cards out (and overlaps them when the hand is wide) from these.
+        // The CSS uses these to fan out (and overlap) the hand.
         cardElement.style.setProperty("--eden-hand-index", String(index++));
 
-        if (side === "player") {
+        if (interactive) {
             if (handIndex === EdenSelectedHandIndex) cardElement.classList.add("eden-game-hand-card-selected");
+            // Cards whose canPlay fails are faded and can't be selected.
+            if (!EdenCanPlayCard(gameState[side], gameState[side].hand[handIndex])) {
+                cardElement.classList.add("eden-game-hand-card-unplayable");
+                EdenAttachTooltip(cardElement, "Can't play this yet", card.cannotPlayText ?? "Its condition isn't met.");
+            }
 
             cardElement.addEventListener("click", () => {
                 EdenHandleCardClick(handIndex);
             });
+            cardElement.addEventListener("mousedown", event => {
+                EdenStartHandDrag(event, handIndex, card);
+            });
+        }
 
+        if (faceUp) {
             cardElement.addEventListener("contextmenu", event => {
                 event.preventDefault();
                 EdenShowCardPreview(card);
@@ -286,40 +328,150 @@ function EdenCreateGameHandRow(side) {
     return row;
 }
 
-/*
-Selects the clicked hand card (or deselects it if it is already selected).
-The card is only played once the player picks a board slot.
-*/
+// Toggles the hand card's selection; it's played once a board slot is clicked.
 function EdenHandleCardClick(handIndex) {
-    const gameState = EdenGameState;
-    if (gameState.currentTurn !== "player" || gameState.actionsRemaining <= 0) return;
+    // Ignore the click that ends a drag.
+    if (Date.now() - EdenDragEndTime < 100) return;
+    if (!EdenCanSelectHandCard(handIndex)) return;
 
     EdenSelectedHandIndex = EdenSelectedHandIndex === handIndex ? null : handIndex;
     EdenAbilitySelecting = false;
     EdenShowGameBoard();
 }
 
+function EdenCanSelectHandCard(handIndex) {
+    const gameState = EdenGameState;
+    if (!EdenIsLocalTurn() || gameState.actionsRemaining <= 0 || gameState.pendingSelection) return false;
+    return EdenCanPlayCard(gameState.player, gameState.player.hand[handIndex]);
+}
+
+// Time the last drag ended, so its trailing click is ignored.
+let EdenDragEndTime = 0;
+
 /*
-Uses the player's class ability. Instant abilities resolve right away;
-abilities with targetSlot wait for the player to pick a board slot.
+Shared drag-onto-board handling. After a small move, drag.start() selects the dragged thing (so its targets light up)
+and drag.move() follows the mouse. On release over a highlighted target, that target is clicked (same path as
+select + click); otherwise drag.cancel() runs.
+drag: { start(), move(moveEvent), end(), isSelected(), cancel() }
 */
+function EdenTrackBoardDrag(event, drag) {
+    // Block the browser's image drag and text selection.
+    event.preventDefault();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let dragging = false;
+
+    const move = moveEvent => {
+        if (!dragging) {
+            if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 6) return;
+            dragging = true;
+            drag.start();
+            EdenGameContainer.classList.add("eden-game-dragging");
+        }
+        drag.move(moveEvent);
+    };
+
+    const drop = upEvent => {
+        document.removeEventListener("mousemove", move);
+        document.removeEventListener("mouseup", drop);
+        // No movement: a normal click, handled by the click listener.
+        if (!dragging) return;
+
+        drag.end();
+        EdenGameContainer.classList.remove("eden-game-dragging");
+        EdenDragEndTime = Date.now();
+        const target = document.elementFromPoint(upEvent.clientX, upEvent.clientY)?.closest(".eden-game-board-slot-target, .eden-game-board-row-target");
+        if (target instanceof HTMLElement && drag.isSelected()) target.click();
+        else {
+            drag.cancel();
+            EdenShowGameBoard();
+        }
+    };
+
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", drop);
+}
+
+// Hand card drag: a ghost copy follows the mouse.
+function EdenStartHandDrag(event, handIndex, card) {
+    if (event.button !== 0 || !EdenCanSelectHandCard(handIndex)) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const grabX = event.clientX - rect.left;
+    const grabY = event.clientY - rect.top;
+    let ghost = null;
+
+    EdenTrackBoardDrag(event, {
+        start: () => {
+            EdenSelectedHandIndex = handIndex;
+            EdenAbilitySelecting = false;
+            EdenShowGameBoard();
+            ghost = EdenCardGameRenderCard(card);
+            ghost.classList.add("eden-game-drag-ghost");
+            ghost.style.width = `${rect.width}px`;
+            EdenGameContainer.appendChild(ghost);
+        },
+        move: moveEvent => {
+            ghost.style.left = `${moveEvent.clientX - grabX}px`;
+            ghost.style.top = `${moveEvent.clientY - grabY}px`;
+        },
+        end: () => ghost.remove(),
+        isSelected: () => EdenSelectedHandIndex === handIndex,
+        cancel: () => EdenSelectedHandIndex = null
+    });
+}
+
+// Ability drag (targetSlot abilities, e.g. First Bell): an arrow stretches from the button to the mouse.
+function EdenStartAbilityDrag(event) {
+    if (event.button !== 0 || !EdenGetPlayerClass(EdenGameState.player)?.targetSlot) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const fromX = rect.left + rect.width / 2;
+    const fromY = rect.top + rect.height / 2;
+    const arrow = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    arrow.classList.add("eden-game-drag-arrow");
+    arrow.innerHTML = `
+        <defs><marker id="eden-drag-arrow-head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="3" markerHeight="3" orient="auto"><path d="M0,0 L10,5 L0,10 z" /></marker></defs>
+        <path class="eden-game-drag-arrow-line" marker-end="url(#eden-drag-arrow-head)" />`;
+
+    EdenTrackBoardDrag(event, {
+        start: () => {
+            EdenAbilitySelecting = true;
+            EdenSelectedHandIndex = null;
+            EdenShowGameBoard();
+            EdenGameContainer.appendChild(arrow);
+        },
+        move: moveEvent => {
+            // Upward curve: control point is the midpoint, raised by 1/5 of the length.
+            const toX = moveEvent.clientX;
+            const toY = moveEvent.clientY;
+            const lift = Math.hypot(toX - fromX, toY - fromY) / 5;
+            arrow.querySelector("path.eden-game-drag-arrow-line")?.setAttribute("d", `M ${fromX} ${fromY} Q ${(fromX + toX) / 2} ${(fromY + toY) / 2 - lift} ${toX} ${toY}`);
+        },
+        end: () => arrow.remove(),
+        isSelected: () => EdenAbilitySelecting,
+        cancel: () => EdenAbilitySelecting = false
+    });
+}
+
+// Instant abilities resolve now; targetSlot abilities toggle slot selection.
 function EdenHandleAbilityClick() {
+    // Ignore the click that ends a drag.
+    if (Date.now() - EdenDragEndTime < 100) return;
     const cardClass = EdenGetPlayerClass(EdenGameState.player);
 
     if (cardClass?.targetSlot) {
         EdenAbilitySelecting = !EdenAbilitySelecting;
         EdenSelectedHandIndex = null;
-    } else EdenUseAbility(EdenGameState.player);
+    } else EdenSubmitMove(["ability", null]);
 
     EdenShowGameBoard();
 }
 
-/*
-Plays the selected hand card, or the waiting ability, into the clicked slot on the player's board.
-*/
+// Plays the selected hand card or ability into an own board slot. boardIndex is null for an event (whole board).
 function EdenHandleSlotClick(boardIndex) {
-    if (EdenAbilitySelecting) EdenUseAbility(EdenGameState.player, boardIndex);
-    else if (EdenSelectedHandIndex !== null) EdenPlayCard(EdenGameState.player, EdenSelectedHandIndex, boardIndex);
+    if (EdenAbilitySelecting) EdenSubmitMove(["ability", boardIndex]);
+    else if (EdenSelectedHandIndex !== null) EdenSubmitMove(["play", EdenSelectedHandIndex, boardIndex]);
     else return;
 
     EdenSelectedHandIndex = null;
@@ -327,9 +479,21 @@ function EdenHandleSlotClick(boardIndex) {
     EdenShowGameBoard();
 }
 
-/*
-Creates one player's board.
-*/
+// Board targets of the selected hand card, if it's an event that picks one (not a backstage pick like Re-Run).
+function EdenGetSelectedEventTargets() {
+    const instance = EdenSelectedHandIndex === null ? null : EdenGameState.player.hand[EdenSelectedHandIndex];
+    if (!instance || !EdenIsEventCard(EdenGetCard(instance))) return [];
+    return EdenGetSelectionTargets(EdenGameState.player, instance).filter(target => target.boardIndex !== undefined);
+}
+
+// Plays the selected event and picks its target in one click (still sent as two moves: play, target).
+function EdenPlayEventOnTarget(targetPlayer, boardIndex) {
+    const handIndex = EdenSelectedHandIndex;
+    EdenSelectedHandIndex = null;
+    if (EdenSubmitMove(["play", handIndex, null])) EdenSubmitMove(["target", targetPlayer.seat, boardIndex]);
+    EdenShowGameBoard();
+}
+
 function EdenCreateGameBoardRow(side) {
     const gameState = EdenGameState;
     const row = EdenCreateElement(
@@ -337,9 +501,14 @@ function EdenCreateGameBoardRow(side) {
         `eden-game-board-row eden-game-board-row-${side}`
     );
 
-    // A selected event card targets the whole board instead of a single slot.
-    const selectedEvent = side === "player" && EdenSelectedHandIndex !== null && EdenIsEventCard(EdenGetCardById(gameState.player.hand[EdenSelectedHandIndex]));
-    if (selectedEvent) {
+    // Valid targets of a pending cardSelection on this board (only for the player choosing).
+    const selectionTargets = EdenIsLocalTurn() ? EdenGetPendingSelectionTargets().filter(target => target.ECPlayer === gameState[side]) : [];
+
+    // A selected event with board targets (e.g. Vanilla Classic) is played by clicking the target.
+    const eventTargets = EdenGetSelectedEventTargets().filter(target => target.ECPlayer === gameState[side]);
+    // Other selected events target the whole board row.
+    const selectedEvent = side === "player" && EdenSelectedHandIndex !== null && EdenIsEventCard(EdenGetCard(gameState.player.hand[EdenSelectedHandIndex]));
+    if (selectedEvent && EdenGetSelectedEventTargets().length === 0) {
         row.classList.add("eden-game-board-row-target");
         row.addEventListener("click", () => {
             EdenHandleSlotClick(null);
@@ -351,7 +520,8 @@ function EdenCreateGameBoardRow(side) {
         const boardCard = gameState[side].board[i];
 
         if (boardCard) {
-            const card = EdenGetCardById(boardCard);
+            // Shows this copy's modified stats (e.g. from Waitress).
+            const card = EdenGetCardView(boardCard);
             if (card) {
                 slot.classList.add("eden-game-board-slot-filled");
                 const cardElement = EdenCardGameRenderCard(card);
@@ -363,8 +533,20 @@ function EdenCreateGameBoardRow(side) {
             }
         }
 
-        // With a hand card or ability waiting, every slot on the player's side (empty or not) is a valid target.
-        if (side === "player" && !selectedEvent && (EdenSelectedHandIndex !== null || EdenAbilitySelecting)) {
+        if (selectionTargets.some(target => target.boardIndex === i)) {
+            slot.classList.add("eden-game-board-slot-target", "eden-game-board-slot-select");
+            slot.addEventListener("click", () => {
+                if (EdenSubmitMove(["target", gameState[side].seat, i])) EdenShowGameBoard();
+            });
+        }
+        else if (eventTargets.some(target => target.boardIndex === i)) {
+            slot.classList.add("eden-game-board-slot-target", "eden-game-board-slot-select");
+            slot.addEventListener("click", () => {
+                EdenPlayEventOnTarget(gameState[side], i);
+            });
+        }
+        // With a hand card or ability selected, every own slot (empty or filled) is a target.
+        else if (side === "player" && !selectedEvent && (EdenSelectedHandIndex !== null || EdenAbilitySelecting)) {
             slot.classList.add("eden-game-board-slot-target");
             slot.addEventListener("click", () => {
                 EdenHandleSlotClick(i);
@@ -376,9 +558,7 @@ function EdenCreateGameBoardRow(side) {
     return row;
 }
 
-/*
-Creates the square panel beside a player's board: name, fame and ability button.
-*/
+// Panel beside a player's board: name, Fame and ability button.
 function EdenCreateGamePlayerPanel(side) {
     const gameState = EdenGameState;
     const panel = EdenCreateElement(
@@ -392,7 +572,7 @@ function EdenCreateGamePlayerPanel(side) {
         EdenCreateElement(
             "div",
             "eden-game-player-name",
-            side === "player" ? "You" : "Opponent"
+            EdenGetPanelName(gameState[side])
         )
     );
 
@@ -406,7 +586,7 @@ function EdenCreateGamePlayerPanel(side) {
     const abilityButton = EdenCreateElement("button", "eden-deck-builder-button eden-game-ability-button");
     const cardClass = EdenGetPlayerClass(gameState[side]);
 
-    // Falls back to the ability name as text when there is no image.
+    // Ability image (assets/ability/{abilityName}.png), falling back to the name as text.
     if (cardClass?.abilityName) {
         const image = EdenCreateAbilityImage(cardClass, "eden-game-ability-image");
         image.addEventListener("error", () => {
@@ -416,10 +596,11 @@ function EdenCreateGamePlayerPanel(side) {
     } else abilityButton.textContent = "Use Ability";
 
     abilitySlot.title = cardClass?.effect ? `${cardClass.abilityName}: ${cardClass.abilityDescription}` : "This class has no ability yet.";
-    abilityButton.disabled = side !== "player" || !cardClass?.effect || gameState.currentTurn !== "player" || gameState.actionsRemaining <= 0 || gameState.abilityUsed;
+    abilityButton.disabled = gameState[side].control !== "local" || !EdenIsLocalTurn() || !cardClass?.effect || gameState.actionsRemaining <= 0 || gameState.abilityUsed || gameState.pendingSelection !== null;
     if (side === "player" && EdenAbilitySelecting) abilityButton.classList.add("eden-game-ability-button-selected");
 
     abilityButton.addEventListener("click", EdenHandleAbilityClick);
+    abilityButton.addEventListener("mousedown", EdenStartAbilityDrag);
     abilitySlot.addEventListener("contextmenu", event => {
         event.preventDefault();
         if (cardClass?.abilityName) EdenShowAbilityPreview(cardClass);
@@ -433,15 +614,13 @@ function EdenCreateGamePlayerPanel(side) {
 
 function EdenCreateAbilityImage(cardClass, className) {
     const image = EdenCreateElement("img", className);
-    image.src = `${EdenAddonBaseUrl}assets/ability/${encodeURIComponent(cardClass.abilityName)}.png`;
+    image.src = `${EdenAddonAssets}ability/${encodeURIComponent(cardClass.abilityName)}.png`;
     image.alt = cardClass.abilityName;
     image.draggable = false;
     return image;
 }
 
-/*
-Shows a class ability enlarged, with its name and effect, like a card preview.
-*/
+// Enlarged ability preview (right-click), with keyword blocks on the left like a card preview.
 function EdenShowAbilityPreview(cardClass) {
     const preview = EdenCreateElement("div", "eden-ability-preview");
     const image = EdenCreateAbilityImage(cardClass, "eden-ability-preview-image");
@@ -451,22 +630,26 @@ function EdenShowAbilityPreview(cardClass) {
 
     preview.appendChild(image);
     preview.appendChild(EdenCreateElement("div", "eden-ability-preview-name", cardClass.abilityName));
-    preview.appendChild(EdenCreateElement("div", "eden-ability-preview-effect", cardClass.abilityDescription ?? ""));
-    EdenShowPreviewElement(preview);
+    const description = EdenCreateElement("div", "eden-ability-preview-effect");
+    EdenAppendHighlightedText(description, cardClass.abilityDescription ?? "");
+    preview.appendChild(description);
+    EdenShowPreviewElement(EdenCreatePreviewWithKeywords(preview, cardClass.abilityDescription));
 }
 
-/*
-Creates the information shown between the two players.
-*/
+// Strip between the two boards: turn label, actions left and hints.
 function EdenCreateGameCenterInfo() {
     const gameState = EdenGameState;
     const center = EdenCreateElement("div", "eden-game-center-info");
+    const current = gameState[gameState.currentTurn];
+    let turnLabel = current.control === "local" ? "Your Turn" : `${EdenGetPanelName(current)}'s Turn`;
+    // An online player who left can return and continue; their turn waits until then.
+    if (gameState.online && !gameState.gameOver && !EdenOnlineIsInRoom(current.memberNumber)) turnLabel = `Waiting for ${current.name} to reconnect`;
 
     center.appendChild(
         EdenCreateElement(
             "div",
             "eden-game-turn-label",
-            gameState.currentTurn === "player" ? "Your Turn" : "Opponent's Turn"
+            turnLabel
         )
     );
 
@@ -487,14 +670,16 @@ function EdenCreateGameCenterInfo() {
 
     const selectedCard = EdenSelectedHandIndex === null
         ? null
-        : EdenGetCardById(gameState.player.hand[EdenSelectedHandIndex]);
+        : EdenGetCard(gameState.player.hand[EdenSelectedHandIndex]);
 
     if (selectedCard) {
         center.appendChild(
             EdenCreateElement(
                 "div",
                 "eden-game-hint",
-                EdenIsEventCard(selectedCard)
+                EdenGetSelectedEventTargets().length > 0
+                    ? `Choose a target for ${selectedCard.name} (Esc to cancel)`
+                    : EdenIsEventCard(selectedCard)
                     ? `Click the board to play ${selectedCard.name} (Esc to cancel)`
                     : `Choose a slot for ${selectedCard.name} (Esc to cancel)`
             )
@@ -510,12 +695,22 @@ function EdenCreateGameCenterInfo() {
             )
         );
     }
+
+    if (gameState.pendingSelection) {
+        center.appendChild(
+            EdenCreateElement(
+                "div",
+                "eden-game-hint",
+                current.control === "local"
+                    ? `Choose a target for ${EdenGetCard(gameState.pendingSelection.card)?.name}`
+                    : `${EdenGetPanelName(current)} is choosing a target for ${EdenGetCard(gameState.pendingSelection.card)?.name}`
+            )
+        );
+    }
     return center;
 }
 
-/*
-Creates the game log and action buttons.
-*/
+// Side panel: game log, chat input and action buttons.
 function EdenCreateGameChatPanel() {
     const gameState = EdenGameState;
 
@@ -523,39 +718,76 @@ function EdenCreateGameChatPanel() {
 
     const chatLog = EdenCreateElement("div", "eden-game-chat-log");
 
-    if (gameState.log.length === 0) {
-        chatLog.appendChild(
-            EdenCreateElement(
-                "div",
-                "eden-game-chat-placeholder",
-                "Game log will appear here."
-            )
-        );
-    } else {
-        for (const message of gameState.log) {
-            chatLog.appendChild(
-                EdenCreateElement(
-                    "div",
-                    "eden-game-chat-message",
-                    message
-                )
-            );
+    // One block per turn (see EdenGameState.log), one element per action.
+    for (const block of gameState.log) {
+        const actions = block.actions.filter(action => action.length > 0);
+        if (actions.length === 0) continue;
+
+        const blockElement = EdenCreateElement("div", `eden-game-chat-turn eden-game-chat-turn-${block.side ?? "start"}`);
+        // Turns alternate, so a side's own turn number is half the combined count, rounded up.
+        const title = block.turn === 0 ? "Game Start" : `Turn ${Math.ceil(block.turn / 2)} · ${EdenGetPanelName(gameState[block.side])}`;
+        blockElement.appendChild(EdenCreateElement("div", "eden-game-chat-turn-title", title));
+
+        for (const action of actions) {
+            const actionElement = EdenCreateElement("div", "eden-game-chat-action");
+            for (const message of action) {
+                if (typeof message === "string") {
+                    actionElement.appendChild(EdenCreateElement("div", "eden-game-chat-message", message));
+                    continue;
+                }
+                // Chat entry: { name, text }.
+                actionElement.classList.add("eden-game-chat-action-chat");
+                const chatElement = EdenCreateElement("div", "eden-game-chat-message");
+                chatElement.appendChild(EdenCreateElement("span", "eden-game-chat-sender", `${message.name}: `));
+                chatElement.appendChild(document.createTextNode(message.text));
+                actionElement.appendChild(chatElement);
+            }
+            blockElement.appendChild(actionElement);
         }
+        chatLog.appendChild(blockElement);
     }
+
+    if (!chatLog.hasChildNodes()) chatLog.appendChild(EdenCreateElement("div", "eden-game-chat-placeholder", "Game log will appear here."));
+
+    // Scroll to the newest messages once the panel is on the page.
+    requestAnimationFrame(() => {
+        chatLog.scrollTop = chatLog.scrollHeight;
+    });
 
     const buttons = EdenCreateElement("div", "eden-game-action-buttons");
 
+    // Online, chat goes to the other player and spectators.
+    const chatInput = EdenCreateElement("input", "eden-game-chat-input");
+    chatInput.type = "text";
+    chatInput.placeholder = "Send a message...";
+    chatInput.maxLength = EdenGameChatMaxLength;
+    chatInput.value = EdenGameChatDraft;
+    chatInput.addEventListener("input", () => EdenGameChatDraft = chatInput.value);
+    chatInput.addEventListener("keydown", event => {
+        // Keep the host game's chat and the Esc handler from reacting to typing here.
+        event.stopPropagation();
+        if (event.key === "Enter") EdenSendGameChat(chatInput.value);
+    });
+
+    // Draw button shows the deck: sleeve image + cards left. The tooltip is on the wrapper since disabled buttons get no mouse events.
+    const drawSlot = EdenCreateElement("div", "eden-game-draw-slot");
     const drawButton = EdenCreateElement(
         "button",
-        "eden-deck-builder-button eden-game-action-button",
-        "Draw"
+        "eden-game-action-button eden-game-draw-button",
+        String(gameState.player.deck.length)
     );
+    drawButton.style.backgroundImage = `url("${EdenAddonAssets}edenSleeve.png")`;
 
-    drawButton.disabled = gameState.currentTurn !== "player";
+    drawButton.disabled = !EdenIsLocalTurn() || gameState.pendingSelection !== null;
 
     drawButton.addEventListener("click", () => {
-        if (EdenDrawCardButton()) EdenShowGameBoard();
+        if (EdenSubmitMove(["draw"])) EdenShowGameBoard();
     });
+    drawSlot.appendChild(drawButton);
+    // With a full hand, the drawn card goes straight to the Backstage.
+    const handFull = gameState.player.hand.length >= EdenMaxHandSize;
+    if (handFull) drawButton.classList.add("eden-game-draw-button-full");
+    EdenAttachTooltip(drawSlot, "Draw a card", handFull ? `Your hand is full (${EdenMaxHandSize} cards), so the drawn card will be sent to the Backstage.` : "");
 
     const passButton = EdenCreateElement(
         "button",
@@ -563,25 +795,17 @@ function EdenCreateGameChatPanel() {
         "Pass"
     );
 
-    passButton.disabled = gameState.currentTurn !== "player";
+    passButton.disabled = !EdenIsLocalTurn() || gameState.pendingSelection !== null;
 
     passButton.addEventListener("click", () => {
         EdenSelectedHandIndex = null;
-        if (EdenEndTurn()) EdenShowGameBoard();
+        if (EdenSubmitMove(["pass"])) EdenShowGameBoard();
     });
-
-    const settingsButton = EdenCreateElement(
-        "button",
-        "eden-deck-builder-button eden-game-action-button",
-        ""
-    );
-
-    settingsButton.disabled = true;
 
     const restingRoomButton = EdenCreateElement(
         "button",
         "eden-deck-builder-button eden-game-action-button",
-        "Resting Room"
+        "Backstage"
     );
 
     restingRoomButton.addEventListener("click", () => {
@@ -589,17 +813,18 @@ function EdenCreateGameChatPanel() {
         EdenShowGameBoard();
     });
 
+    // A running online game keeps going when closed, so this only hides the window.
     const exitButton = EdenCreateElement(
         "button",
         "eden-deck-builder-button eden-game-action-button eden-game-exit-button",
-        "Exit Game"
+        gameState.online && !gameState.gameOver ? "Back to Room" : "Exit Game"
     );
 
     exitButton.addEventListener("click", EdenCloseCardGame);
 
-    buttons.appendChild(drawButton);
+    buttons.appendChild(chatInput);
+    buttons.appendChild(drawSlot);
     buttons.appendChild(passButton);
-    buttons.appendChild(settingsButton);
     buttons.appendChild(restingRoomButton);
     buttons.appendChild(exitButton);
 
@@ -609,30 +834,73 @@ function EdenCreateGameChatPanel() {
     return panel;
 }
 
-/*
-Creates the window listing the cards in the player's resting room.
-*/
+// Game-over pop-up; it covers the board so nothing else can be clicked.
+function EdenCreateGameOverWindow() {
+    const gameState = EdenGameState;
+    const winner = gameState.winner;
+    const playerWon = winner.control === "local";
+    // Spectators get the winner's name instead of win/lose.
+    const title = playerWon ? "You Win!" : gameState.localSeat !== null ? "You Lose" : `${winner.name} Wins!`;
+
+    const overlay = EdenCreateElement("div", "eden-game-over-overlay");
+    const popup = EdenCreateElement("div", `eden-game-over-window eden-game-over-${playerWon || gameState.localSeat === null ? "win" : "loss"}`);
+
+    popup.appendChild(EdenCreateElement("div", "eden-game-over-title", title));
+    popup.appendChild(EdenCreateElement(
+        "div",
+        "eden-game-over-message",
+        `${EdenWho(winner)} reached ${EdenWinningFame} Fame.`
+    ));
+
+    const closeButton = EdenCreateElement("button", "eden-deck-builder-button eden-game-over-button", "Close Game");
+    closeButton.addEventListener("click", EdenCloseCardGame);
+    popup.appendChild(closeButton);
+
+    overlay.appendChild(popup);
+    return overlay;
+}
+
+// Whether the local player must pick a Backstage card (e.g. for Re-Run).
+function EdenIsPickingBackstage() {
+    return EdenIsLocalTurn() && EdenGetPendingSelectionTargets().some(target => target.backstageIndex !== undefined);
+}
+
+// Backstage window (restingRoom in the state). During a backstage pick it opens by itself and can't be closed.
 function EdenCreateRestingRoomWindow() {
     const overlay = EdenCreateElement("div", "eden-game-resting-room-overlay");
     const roomWindow = EdenCreateElement("div", "eden-game-resting-room-window");
+    const picking = EdenIsPickingBackstage();
+    const pickable = picking ? EdenGetPendingSelectionTargets().map(target => target.backstageIndex) : [];
 
-    roomWindow.appendChild(EdenCreateElement("h2", "eden-game-resting-room-title", "Resting Room"));
+    roomWindow.appendChild(EdenCreateElement(
+        "h2",
+        "eden-game-resting-room-title",
+        picking ? `Choose a card for ${EdenGetCard(EdenGameState.pendingSelection.card)?.name}` : "Backstage"
+    ));
 
     const cardList = EdenCreateElement("div", "eden-game-resting-room-cards");
 
-    for (const cardId of EdenGameState.player.restingRoom) {
-        const card = EdenGetCardById(cardId);
-        if (!card) continue;
+    EdenGameState.player.restingRoom.forEach((instance, backstageIndex) => {
+        const card = EdenGetCardView(instance);
+        if (!card) return;
 
         const cardElement = EdenCardGameRenderCard(card);
         cardElement.addEventListener("contextmenu", event => {
             event.preventDefault();
             EdenShowCardPreview(card);
         });
+        if (pickable.includes(backstageIndex)) {
+            cardElement.classList.add("eden-game-resting-room-pick");
+            cardElement.addEventListener("click", () => {
+                if (EdenSubmitMove(["backstage", backstageIndex])) EdenShowGameBoard();
+            });
+        }
+        // While picking, only pickable cards are shown.
+        else if (picking) return;
         cardList.appendChild(cardElement);
-    }
+    });
 
-    if (!cardList.hasChildNodes()) cardList.appendChild(EdenCreateElement("div", "eden-game-resting-room-empty", "Your resting room is empty."));
+    if (!cardList.hasChildNodes()) cardList.appendChild(EdenCreateElement("div", "eden-game-resting-room-empty", "Your Backstage is empty."));
 
     const closeButton = EdenCreateElement(
         "button",
@@ -646,7 +914,7 @@ function EdenCreateRestingRoomWindow() {
     });
 
     roomWindow.appendChild(cardList);
-    roomWindow.appendChild(closeButton);
+    if (!picking) roomWindow.appendChild(closeButton);
     overlay.appendChild(roomWindow);
     return overlay;
 }
