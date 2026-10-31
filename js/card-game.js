@@ -177,9 +177,24 @@ function EdenShowGameDeckSelect() {
         for (const deck of decks) deckList.appendChild(EdenCreateGameDeckSelectItem(deck));
     }
 
+    // The deck list with a "Use Default Deck" button beside it (hidden while waiting for the other player).
+    const deckSelect = EdenCreateElement("div", "eden-game-deck-select");
+    deckSelect.appendChild(deckList);
+    if (!waitingText) {
+        const defaultButton = EdenCreateElement("button", "eden-deck-builder-button", "Use Default Deck");
+        defaultButton.addEventListener("click", () => EdenSelectGameDeck(EdenDefaultDeck));
+        deckSelect.appendChild(defaultButton);
+    }
+
     screen.appendChild(title);
-    screen.appendChild(deckList);
+    screen.appendChild(deckSelect);
     EdenGameContentElement.appendChild(screen);
+}
+
+// Plays with the chosen deck: sends it to the online game, or starts a local game.
+function EdenSelectGameDeck(deck) {
+    if (EdenOnlineIsPickingDeck()) EdenOnlinePickDeck(deck);
+    else EdenStartGame(deck);
 }
 
 function EdenCreateGameDeckSelectItem(deck) {
@@ -201,10 +216,7 @@ function EdenCreateGameDeckSelectItem(deck) {
 
     item.appendChild(name);
     item.appendChild(information);
-    item.addEventListener("click", () => {
-        if (EdenOnlineIsPickingDeck()) EdenOnlinePickDeck(deck);
-        else EdenStartGame(deck);
-    });
+    item.addEventListener("click", () => EdenSelectGameDeck(deck));
     return item;
 }
 
@@ -219,11 +231,9 @@ function EdenStartGame(deck) {
 
 const EdenGameBackgroundFolder = "Backgrounds/";
 
-// The player's Club Card background from the host game, or its default board.
+// The background chosen in the settings (see EdenGetBackgroundName).
 function EdenGetGameBackgroundUrl() {
-    // Player only exists inside the host game.
-    const background = typeof Player !== "undefined" && Player.Game?.ClubCard?.Background ? Player.Game.ClubCard.Background : "ClubCardPlayBoard1";
-    return `${EdenGameBackgroundFolder}${background}.jpg`;
+    return `${EdenGameBackgroundFolder}${EdenGetBackgroundName()}.jpg`;
 }
 
 // Redraws the whole screen from EdenGameState. Called after every state change.
@@ -269,7 +279,8 @@ function EdenSendGameChat(text) {
     text = text.trim();
     if (!text || !EdenGameState) return;
     EdenGameChatDraft = "";
-    EdenAddGameChat("You", text);
+    // Your nickname, as the others see it (CharacterNickname only exists inside the host game).
+    EdenAddGameChat(EdenInHostGame ? CharacterNickname(Player) : "You", text);
     if (EdenGameState.online) EdenOnlineSendChat(text);
     EdenShowGameBoard();
 }
@@ -293,7 +304,7 @@ function EdenCreateGameHandRow(side) {
 
         const cardElement = faceUp
             ? EdenCardGameRenderCard(card, { clickable: interactive })
-            : EdenCardGameRenderSleeve();
+            : EdenCardGameRenderSleeve(EdenGetSeatSleeveUrl(gameState[side]));
 
         // The CSS uses these to fan out (and overlap) the hand.
         cardElement.style.setProperty("--eden-hand-index", String(index++));
@@ -776,7 +787,7 @@ function EdenCreateGameChatPanel() {
         "eden-game-action-button eden-game-draw-button",
         String(gameState.player.deck.length)
     );
-    drawButton.style.backgroundImage = `url("${EdenAddonAssets}edenSleeve.png")`;
+    drawButton.style.backgroundImage = `url("${EdenGetSeatSleeveUrl(gameState.player)}")`;
 
     drawButton.disabled = !EdenIsLocalTurn() || gameState.pendingSelection !== null;
 

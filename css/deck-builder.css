@@ -4,7 +4,9 @@
 #eden-card-game-game,
 #eden-open-game-button,
 #eden-online-lobby,
+#eden-settings,
 #eden-tooltip,
+#eden-deck-hover-card,
 #eden-card-preview-overlay {
     --eden-background: #eef2f7;
     --eden-surface: #f9fbfd;
@@ -206,6 +208,43 @@ html.eden-card-game-game-open {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+/* Game deck selection: the deck list centered, the "Use Default Deck" button beside it (below it when narrow). */
+.eden-game-deck-select {
+    margin-bottom: 25px;
+    display: grid;
+    grid-template-columns: 1fr minmax(0, 560px) 1fr;
+    align-items: start;
+    gap: 15px;
+}
+
+.eden-game-deck-select .eden-deck-list {
+    grid-column: 2;
+    width: 100%;
+    margin: 0;
+}
+
+.eden-game-deck-select .eden-deck-list-item {
+    text-align: center;
+}
+
+.eden-game-deck-select > .eden-deck-builder-button {
+    justify-self: start;
+}
+
+@media (max-width: 800px) {
+    .eden-game-deck-select {
+        grid-template-columns: 1fr;
+    }
+
+    .eden-game-deck-select .eden-deck-list {
+        grid-column: 1;
+    }
+
+    .eden-game-deck-select > .eden-deck-builder-button {
+        justify-self: center;
+    }
 }
 
 .eden-deck-list-empty {
@@ -1486,9 +1525,23 @@ to keep the text readable on light and dark backgrounds alike.
 }
 
 
+/* The chat room menu's Eden button: its image stretches to fill the whole button (the host game fits it inside). */
+#chat-room-menu-EdenCardGame .button-image {
+    inset: 0;
+    transform: none;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    aspect-ratio: auto;
+    object-fit: fill;
+}
+
 /* Online lobby, opened from the chat room menu's Eden button (eden-online.js). Below the game window (999999). */
 #eden-online-lobby,
-#eden-online-lobby * {
+#eden-online-lobby *,
+#eden-settings,
+#eden-settings * {
     box-sizing: border-box;
 }
 
@@ -1505,8 +1558,9 @@ to keep the text readable on light and dark backgrounds alike.
     color: var(--eden-text);
 }
 
+/* Wide enough for an admin's full button row (Start Game, Stop Game, Reset, Deck Editor, Settings, Close) on one line. */
 .eden-online-lobby {
-    width: min(520px, 100%);
+    width: min(530px, 100%);
     max-height: 100%;
     overflow-y: auto;
     display: flex;
@@ -1520,7 +1574,8 @@ to keep the text readable on light and dark backgrounds alike.
 }
 
 #eden-online-lobby button,
-#eden-online-lobby select {
+#eden-online-lobby select,
+#eden-settings button {
     font: inherit;
 }
 
@@ -1594,6 +1649,84 @@ to keep the text readable on light and dark backgrounds alike.
     cursor: not-allowed;
 }
 
+/* Settings window (eden-settings.js), styled like the lobby. Opened from the Eden Card Club room and the lobby. */
+.eden-online-lobby.eden-settings {
+    width: min(680px, 100%);
+}
+
+/* Main page: the current background and sleeve, each above its Change button. */
+.eden-settings-choices {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 30px;
+    margin-top: 6px;
+}
+
+.eden-settings-current {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.eden-settings-current img {
+    border: 1px solid var(--eden-border-strong);
+    border-radius: 5px;
+}
+
+.eden-settings-current .eden-settings-background-image {
+    width: 260px;
+}
+
+.eden-settings-current .eden-settings-sleeve-image {
+    width: 65px;
+}
+
+/* Sleeve page. */
+.eden-settings-sleeve-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 10px;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.eden-settings-choice {
+    padding: 0;
+    border: 2px solid var(--eden-border);
+    border-radius: 5px;
+    background: var(--eden-surface-muted);
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.eden-settings-choice:hover {
+    border-color: var(--eden-accent-hover);
+}
+
+.eden-settings-choice.eden-settings-choice-selected {
+    border-color: var(--eden-accent);
+    box-shadow: 0 0 0 2px var(--eden-accent);
+}
+
+.eden-settings-background-image,
+.eden-settings-sleeve-image {
+    display: block;
+    width: 100%;
+    object-fit: cover;
+}
+
+.eden-settings-background-image {
+    aspect-ratio: 2 / 1;
+}
+
+.eden-settings-sleeve-image {
+    aspect-ratio: 1 / 2;
+}
+
 /* The shared hover tooltip (card-renderer.js). Above every addon window, including the card preview. */
 #eden-tooltip {
     position: fixed;
@@ -1613,6 +1746,26 @@ to keep the text readable on light and dark backgrounds alike.
 }
 
 #eden-tooltip.eden-tooltip-visible {
+    display: block;
+}
+
+/* The full card beside a hovered row of the deck editor's deck list (deck-builder.js). Above the deck builder, below the preview. */
+#eden-deck-hover-card,
+#eden-deck-hover-card * {
+    box-sizing: border-box;
+}
+
+#eden-deck-hover-card {
+    position: fixed;
+    z-index: 1000001;
+    display: none;
+    width: 220px;
+    font-family: Arial, sans-serif;
+    color: var(--eden-text);
+    pointer-events: none;
+}
+
+#eden-deck-hover-card.eden-deck-hover-card-visible {
     display: block;
 }
 

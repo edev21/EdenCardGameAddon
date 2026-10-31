@@ -600,14 +600,14 @@ function EdenCheckGroupCountPresence(player, groupName) {
     }).length;
 }
 
-// Local game: the player in seat 0, the AI with EdenDefaultDeck in seat 1.
+// Local game: the player in seat 0 (with their chosen sleeve), the AI with EdenDefaultDeck (and the Eden sleeve) in seat 1.
 function EdenCreateLocalGame(deck) {
     // Host game names: the player's nickname, and the dealer NPC's (eden-room.js).
     const playerName = typeof Player !== "undefined" ? Player.Nickname || Player.Name : "";
     const npcName = typeof EdenCardClubDealer !== "undefined" ? EdenCardClubDealer?.Nickname || EdenCardClubDealer?.Name : "";
     EdenCreateGameState({
         seed: EdenNewSeed(),
-        decks: [deck, EdenDefaultDeck],
+        decks: [{ ...deck, sleeve: EdenGetSleeve() }, EdenDefaultDeck],
         names: [playerName || "Player", npcName || "Opponent"],
         controls: ["local", "ai"],
         localSeat: 0

@@ -22,14 +22,13 @@ Message types (the object in the message's Dictionary):
 - reset:  an admin cleared both seats and the game.
 - chat:   { id, n, text } game chat sent after n moves; kept in game.chat so late joiners see it.
 
-Settings (Auto Spectate) are kept in localStorage.
+Settings (Auto Spectate) are kept in localStorage (eden-settings.js).
 */
 
 const EdenOnlineContent = "EdenCardGame";
 // Bump when the rules engine changes in a way that makes versions disagree.
 const EdenOnlineProtocol = 3;
 const EdenOnlineChunkSize = 4000;
-const EdenOnlineSettingsKey = "edenCardGameSettings";
 
 // The running (or last finished) online game record, or null.
 let EdenOnlineGame = null;
@@ -45,26 +44,8 @@ let EdenOnlineLobbyElement = null;
 // Turn of the last "It's your turn" notice, so it shows once per turn.
 let EdenOnlineNotifiedTurn = null;
 
-function EdenOnlineGetSettings() {
-    try {
-        return JSON.parse(localStorage.getItem(EdenOnlineSettingsKey) ?? "{}") ?? {};
-    } catch {
-        return {};
-    }
-}
-
-function EdenOnlineSaveSetting(key, value) {
-    const settings = EdenOnlineGetSettings();
-    settings[key] = value;
-    try {
-        localStorage.setItem(EdenOnlineSettingsKey, JSON.stringify(settings));
-    } catch (error) {
-        console.error("Eden Card Game: could not save settings.", error);
-    }
-}
-
 function EdenOnlineIsAutoSpectate() {
-    return EdenOnlineGetSettings().autoSpectate ?? true;
+    return EdenGetSettings().autoSpectate ?? true;
 }
 
 // Hash of the protocol and all card/class definitions (effect code included). Clients must match to play together.
@@ -148,7 +129,7 @@ function EdenOnlineLoadGame(open) {
     let chatIndex = 0;
     const addChatUpTo = n => {
         for (; chatIndex < chat.length && chat[chatIndex].n <= n; chatIndex++) {
-            EdenAddGameChat(chat[chatIndex].member === Player.MemberNumber ? "You" : chat[chatIndex].name, chat[chatIndex].text);
+            EdenAddGameChat(chat[chatIndex].name, chat[chatIndex].text);
         }
     };
     for (const [n, move] of game.moves.entries()) {
@@ -248,7 +229,8 @@ function EdenOnlineShowDeckSelect() {
 function EdenOnlinePickDeck(deck) {
     const game = EdenOnlineGame;
     const seat = game.players.indexOf(Player.MemberNumber);
-    const record = { name: deck.name, class: deck.class, cards: deck.cards };
+    // The sleeve goes with the deck, so everyone sees this player's cards in it.
+    const record = { name: deck.name, class: deck.class, cards: deck.cards, sleeve: EdenGetSleeve() };
     game.decks[seat] = record;
     EdenOnlineSend({ type: "deck", id: game.id, seat, deck: record });
     EdenOnlineOnDeckPicked();
@@ -532,17 +514,7 @@ function EdenOnlineRefreshLobby(force = false) {
         else if (!holder) row.appendChild(EdenOnlineLobbyButton("Take Seat", () => EdenOnlineTakeSeat(seat), EdenGetDecks().length === 0));
         panel.appendChild(row);
     }
-    if (EdenGetDecks().length === 0) panel.appendChild(EdenCreateElement("div", "eden-online-lobby-note", "Build a deck first (Eden Card Club, in the main hall)."));
-
-    // Auto Spectate
-    const spectateRow = EdenCreateElement("label", "eden-online-lobby-row");
-    const checkbox = EdenCreateElement("input", "");
-    checkbox.type = "checkbox";
-    checkbox.checked = EdenOnlineIsAutoSpectate();
-    checkbox.addEventListener("change", () => EdenOnlineSaveSetting("autoSpectate", checkbox.checked));
-    spectateRow.appendChild(checkbox);
-    spectateRow.appendChild(EdenCreateElement("span", "", "Auto Spectate (watch games in this room automatically)"));
-    panel.appendChild(spectateRow);
+    if (EdenGetDecks().length === 0) panel.appendChild(EdenCreateElement("div", "eden-online-lobby-note", "Build a deck first (Deck Editor, below)."));
 
     // Admin controls
     const buttons = EdenCreateElement("div", "eden-online-lobby-buttons");
@@ -551,10 +523,24 @@ function EdenOnlineRefreshLobby(force = false) {
         if (running) buttons.appendChild(EdenOnlineLobbyButton("Stop Game", EdenOnlineCancelGame, false, true));
         buttons.appendChild(EdenOnlineLobbyButton("Reset", EdenOnlineResetGame, false, true));
     } else buttons.appendChild(EdenCreateElement("div", "eden-online-lobby-note", "A room admin with the addon starts the game once both seats are taken."));
+    buttons.appendChild(EdenOnlineLobbyButton("Deck Editor", EdenOnlineOpenDeckEditor));
+    buttons.appendChild(EdenOnlineLobbyButton("Settings", EdenOnlineOpenSettings));
     buttons.appendChild(EdenOnlineLobbyButton("Close", EdenOnlineCloseLobby));
     panel.appendChild(buttons);
 
     lobby.appendChild(panel);
+}
+
+// Swaps the lobby for the deck builder; closing it returns to the chat room.
+function EdenOnlineOpenDeckEditor() {
+    EdenOnlineCloseLobby();
+    EdenOpenCardGameDeckBuilder();
+}
+
+// Swaps the lobby for the settings window; closing it reopens the lobby (also after a trip to the background screen).
+function EdenOnlineOpenSettings() {
+    EdenOnlineCloseLobby();
+    EdenOpenSettings(EdenOnlineOpenLobby);
 }
 
 function EdenOnlineLobbyButton(label, onClick, disabled = false, danger = false) {
@@ -625,7 +611,7 @@ function EdenOnlineRegisterHooks() {
 
     EdenModApi.hookFunction("ChatRoomMenuButtonVisualState", 0, (args, next) => {
         if (args[0] !== EdenOnlineContent) return next(args);
-        return { image: "Icons/Rectangle/GameOption.png", state: "Default", hoverText: "Eden Card Game" };
+        return { image: `${EdenAddonAssets}edenLogoRoom.png`, state: "Default", hoverText: "Eden Card Game" };
     });
 
     EdenModApi.hookFunction("ChatRoomMenuPerformAction", 0, (args, next) => {

@@ -48,5 +48,5 @@
         document.head.appendChild(script);
     }
 
-    EdenLoadScripts(["cards.js", "deck-storage.js", "card-renderer.js", "deck-builder.js", "card-game-state.js", "card-game.js", "eden-room.js", "eden-online.js"]);
+    EdenLoadScripts(["cards.js", "deck-storage.js", "card-renderer.js", "deck-builder.js", "eden-settings.js", "card-game-state.js", "card-game.js", "eden-room.js", "eden-online.js"]);
 })();

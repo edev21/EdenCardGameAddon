@@ -90,6 +90,12 @@ declare function ChatRoomRegisterMessageHandler(handler: { Description?: string;
 declare function ChatRoomCharacterIsAdmin(character: any): boolean;
 declare function ChatRoomPlayerIsAdmin(): boolean;
 declare function CharacterNickname(character: any): string;
+declare function BackgroundsGenerateList(tags: string[]): string[];
+declare const BackgroundsClubCardsTagList: string[];
+declare var ClubCardBuilderCardBackCount: number;
+declare function BackgroundSelectionMake(tags: string[], name: string, callback: (selection: string, setBackground: boolean) => void): void;
+declare let CurrentModule: string;
+declare let CurrentScreen: string;
 
 interface Window {
     EdenCardGameDeckBuilderAddonLoaded: boolean;

@@ -237,14 +237,14 @@ function EdenCardGameRenderCard(card, options = {}) {
     return cardElement;
 }
 
-// Face-down card (e.g. the opponent's hand).
-function EdenCardGameRenderSleeve() {
+// Face-down card (e.g. the opponent's hand), showing the given sleeve image.
+function EdenCardGameRenderSleeve(sleeveUrl) {
     const cardElement = document.createElement("div");
     cardElement.className = "eden-card-game-card eden-card-game-card-sleeve";
 
     const image = document.createElement("img");
     image.className = "eden-card-game-card-sleeve-image";
-    image.src = `${EdenAddonAssets}edenSleeve.png`;
+    image.src = sleeveUrl;
     image.alt = "Card";
     image.draggable = false;
 

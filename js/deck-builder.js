@@ -97,6 +97,31 @@ function EdenHideCardPreview() {
     EdenCardPreviewOverlay.innerHTML = "";
 }
 
+let EdenDeckHoverCard = null;
+
+// The full card shown beside a hovered row of the deck list (to its left, or right if there's no room).
+function EdenShowDeckHoverCard(card, item) {
+    if (!EdenDeckHoverCard) {
+        EdenDeckHoverCard = document.createElement("div");
+        EdenDeckHoverCard.id = "eden-deck-hover-card";
+        document.body.appendChild(EdenDeckHoverCard);
+    }
+    EdenDeckHoverCard.replaceChildren(EdenCardGameRenderCard(card));
+    EdenDeckHoverCard.classList.add("eden-deck-hover-card-visible");
+
+    const row = item.getBoundingClientRect();
+    const box = EdenDeckHoverCard.getBoundingClientRect();
+    const gap = 12;
+    const left = row.left - gap - box.width >= 0 ? row.left - gap - box.width : row.right + gap;
+    const top = Math.min(Math.max(gap, row.top + row.height / 2 - box.height / 2), window.innerHeight - box.height - gap);
+    EdenDeckHoverCard.style.left = `${left}px`;
+    EdenDeckHoverCard.style.top = `${Math.max(0, top)}px`;
+}
+
+function EdenHideDeckHoverCard() {
+    EdenDeckHoverCard?.classList.remove("eden-deck-hover-card-visible");
+}
+
 // Floating "Open Deck Builder" button, outside the builder container so it shows while it's closed. Hidden in the host game by CSS.
 function EdenEnsureOpenButton() {
     let button = document.getElementById("eden-open-deck-builder-button");
@@ -144,6 +169,7 @@ function EdenCloseCardGameDeckBuilder() {
     document.documentElement.classList.remove("eden-card-game-deck-builder-open");
 
     EdenShowOpenButton();
+    EdenHideDeckHoverCard();
 
     if (!EdenDeckBuilderContainer) return;
 
@@ -154,6 +180,8 @@ function EdenCloseCardGameDeckBuilder() {
 }
 
 function EdenClearBuilder() {
+    // Redraws remove the hovered row without a mouseleave.
+    EdenHideDeckHoverCard();
     EdenDeckBuilderContentElement.innerHTML = "";
 }
 
@@ -574,6 +602,9 @@ function EdenRenderCurrentDeck(container) {
                 event.preventDefault();
                 EdenShowCardPreview(card);
             });
+
+            item.addEventListener("mouseenter", () => EdenShowDeckHoverCard(card, item));
+            item.addEventListener("mouseleave", EdenHideDeckHoverCard);
 
             deckList.appendChild(item);
         }

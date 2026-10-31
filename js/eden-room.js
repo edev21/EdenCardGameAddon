@@ -43,6 +43,7 @@ function EdenCardClubRun() {
     // Logo drawn on top, shrunk to icon size (see the MainHallDraw hook).
     DrawButton(1885, 255, 90, 90, "", "White", "", TextGet("Build"));
     DrawImageResize(EdenMainHallLogo, 1887, 257, 86, 86);
+    DrawButton(1885, 370, 90, 90, "", "White", "Icons/Preference.png", TextGet("Settings"));
 }
 
 function EdenCardClubClick() {
@@ -51,6 +52,7 @@ function EdenCardClubClick() {
     if (MouseIn(1885, 25, 90, 90)) CommonSetScreen("Room", "MainHall");
     if (MouseIn(1885, 140, 90, 90)) InformationSheetLoadCharacter(Player);
     if (MouseIn(1885, 255, 90, 90)) EdenOpenCardGameDeckBuilder();
+    if (MouseIn(1885, 370, 90, 90)) EdenOpenSettings();
 }
 
 // Dialog functions get the room name prefixed: "PlayGame()" runs EdenCardClubPlayGame.
@@ -69,7 +71,8 @@ function EdenRegisterRoomText() {
     CommonCSVCache[`Screens/Room/${EdenRoomName}/Text_${EdenRoomName}.csv`] = [
         ["Exit", "Return to the Club"],
         ["Profile", "Your Profile"],
-        ["Build", "Build your decks"]
+        ["Build", "Build your decks"],
+        ["Settings", "Card game settings"]
     ];
 
     CommonCSVCache[ScreenFileGetDialog(EdenRoomDealerName, "Room", EdenRoomName)] = [
